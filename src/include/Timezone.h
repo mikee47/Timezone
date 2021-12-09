@@ -114,7 +114,7 @@ public:
      *
      * If passed a local time value during the DST -> Local transition
      * that occurs twice, it will be treated as the earlier time, i.e.
-     * the time that occurs before the transistion.
+     * the time that occurs before the transition.
      *
      * Calling this function with local times during a transition interval
      * should be avoided.
