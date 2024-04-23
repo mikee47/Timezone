@@ -17,7 +17,7 @@
 
 #include "include/Timezone.h"
 
-static unsigned year(time_t t)
+static uint16_t getYear(time_t t)
 {
 	return DateTime(t).Year;
 }
@@ -25,8 +25,8 @@ static unsigned year(time_t t)
 time_t Timezone::toLocal(time_t utc, const TimeChangeRule** p_tcr)
 {
 	// recalculate the time change points if needed
-	auto y = year(utc);
-	if(y != year(dstStartUTC)) {
+	auto y = getYear(utc);
+	if(y != getYear(dstStartUTC)) {
 		calcTimeChanges(y);
 	}
 
@@ -42,8 +42,8 @@ time_t Timezone::toLocal(time_t utc, const TimeChangeRule** p_tcr)
 time_t Timezone::toUTC(time_t local)
 {
 	// recalculate the time change points if needed
-	auto y = year(local);
-	if(y != year(dstStartLoc)) {
+	auto y = getYear(local);
+	if(y != getYear(dstStartLoc)) {
 		calcTimeChanges(y);
 	}
 
@@ -53,8 +53,8 @@ time_t Timezone::toUTC(time_t local)
 bool Timezone::utcIsDST(time_t utc)
 {
 	// recalculate the time change points if needed
-	auto y = year(utc);
-	if(y != year(dstStartUTC)) {
+	auto y = getYear(utc);
+	if(y != getYear(dstStartUTC)) {
 		calcTimeChanges(y);
 	}
 
@@ -75,8 +75,8 @@ bool Timezone::utcIsDST(time_t utc)
 bool Timezone::locIsDST(time_t local)
 {
 	// recalculate the time change points if needed
-	auto y = year(local);
-	if(y != year(dstStartLoc)) {
+	auto y = getYear(local);
+	if(y != getYear(dstStartLoc)) {
 		calcTimeChanges(y);
 	}
 
