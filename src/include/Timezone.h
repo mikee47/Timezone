@@ -64,6 +64,13 @@ struct TimeChangeRule {
 	month_t month; ///< 1=Jan
 	uint8_t hour;  ///< 0-23
 	int offset;	///< Offset from UTC in minutes
+
+	/**
+	 * @brief Convert the given time change rule to a time_t value for the given year
+	 * @param year Which year to work with
+	 * @retval time_t Timestamp for the given time change
+	 */
+	time_t operator()(unsigned year) const;
 };
 
 /**
@@ -86,10 +93,10 @@ public:
 	/**
 	 * @brief Convert the given UTC time to local time, standard or daylight time
 	 * @param utc Time in UTC
-	 * @param p_tcr Optionally return the rule used to convert the time
+	 * @param rule Optionally return the rule used to convert the time
 	 * @retval time_t The local time
 	 */
-	time_t toLocal(time_t utc, const TimeChangeRule** p_tcr = nullptr);
+	time_t toLocal(time_t utc, const TimeChangeRule** rule = nullptr);
 
 	/**
 	 * @brief Convert the given local time to UTC time.
@@ -165,17 +172,22 @@ public:
 		return timeTag(locIsDST(local));
 	}
 
+	/**
+	 * @brief Get reference to a timechange rule
+	 * @param isDst true for DST rule, false for STD rule
+	 * @retval TimeChangeRule
+	 */
+	const TimeChangeRule& getRule(bool isDst) const
+	{
+		return isDst ? dstRule : stdRule;
+	}
+
 private:
 	/*
 	 * Calculate the DST and standard time change points for the given
 	 * given year as local and UTC time_t values.
 	 */
 	void calcTimeChanges(unsigned yr);
-
-	/*
-	 * Convert the given time change rule to a time_t value for the given year.
-	 */
-	time_t toTime_t(TimeChangeRule r, unsigned yr);
 
 private:
 	TimeChangeRule dstRule = {"DST", First, Sun, Jan, 1, 0}; ///< rule for start of dst or summer time for any year

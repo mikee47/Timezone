@@ -22,7 +22,7 @@ static unsigned getYear(time_t t)
 	return DateTime(t).Year;
 }
 
-time_t Timezone::toLocal(time_t utc, const TimeChangeRule** p_tcr)
+time_t Timezone::toLocal(time_t utc, const TimeChangeRule** rule)
 {
 	// recalculate the time change points if needed
 	auto y = getYear(utc);
@@ -32,8 +32,8 @@ time_t Timezone::toLocal(time_t utc, const TimeChangeRule** p_tcr)
 
 	const TimeChangeRule& tcr = utcIsDST(utc) ? dstRule : stdRule;
 
-	if(p_tcr) {
-		*p_tcr = &tcr;
+	if(rule) {
+		*rule = &tcr;
 	}
 
 	return utc + (tcr.offset * SECS_PER_MIN);
@@ -96,24 +96,22 @@ bool Timezone::locIsDST(time_t local)
 
 void Timezone::calcTimeChanges(unsigned yr)
 {
-	dstStartLoc = toTime_t(dstRule, yr);
-	stdStartLoc = toTime_t(stdRule, yr);
-	dstStartUTC = dstStartLoc - stdRule.offset * SECS_PER_MIN;
-	stdStartUTC = stdStartLoc - dstRule.offset * SECS_PER_MIN;
+	dstStartUTC = dstRule(yr) - stdRule.offset * SECS_PER_MIN;
+	stdStartUTC = stdRule(yr) - dstRule.offset * SECS_PER_MIN;
 }
 
-time_t Timezone::toTime_t(TimeChangeRule r, unsigned yr)
+time_t TimeChangeRule::operator()(unsigned year) const
 {
 	// working copies of r.month and r.week which we may adjust
-	uint8_t m = r.month;
-	uint8_t w = r.week;
+	uint8_t m = month;
+	uint8_t w = week;
 
 	// is this a "Last week" rule?
 	if(w == week_t::Last) {
 		// yes, for "Last", go to the next month
 		if(++m > month_t::Dec) {
 			m = month_t::Jan;
-			++yr;
+			++year;
 		}
 		// and treat as first week of next month, subtract 7 days later
 		w = week_t::First;
@@ -121,18 +119,18 @@ time_t Timezone::toTime_t(TimeChangeRule r, unsigned yr)
 
 	// calculate first day of the month, or for "Last" rules, first day of the next month
 	DateTime dt;
-	dt.Hour = r.hour;
+	dt.Hour = hour;
 	dt.Minute = 0;
 	dt.Second = 0;
 	dt.Day = 1;
 	dt.Month = m - month_t::Jan; // Zero-based
-	dt.Year = yr;
+	dt.Year = year;
 	time_t t = dt;
 
 	// add offset from the first of the month to r.dow, and offset for the given week
-	t += ((r.dow - dayOfWeek(t) + 7) % 7 + (w - 1) * 7) * SECS_PER_DAY;
+	t += ((dow - dayOfWeek(t) + 7) % 7 + (w - 1) * 7) * SECS_PER_DAY;
 	// back up a week if this is a "Last" rule
-	if(r.week == 0) {
+	if(week == 0) {
 		t -= 7 * SECS_PER_DAY;
 	}
 
