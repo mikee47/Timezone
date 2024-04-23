@@ -137,6 +137,32 @@ time_t TimeChangeRule::operator()(unsigned year) const
 	return t;
 }
 
+time_t Timezone::getNextChange(time_t utcFrom, const TimeChangeRule** rule)
+{
+	auto year = getYear(utcFrom);
+
+	time_t nextDst = dstRule(year);
+	if(nextDst <= utcFrom) {
+		nextDst = dstRule(year + 1);
+	}
+	time_t nextStd = stdRule(year);
+	if(nextStd <= utcFrom) {
+		nextStd = stdRule(year + 1);
+	}
+
+	if(nextDst < nextStd) {
+		if(rule) {
+			*rule = &dstRule;
+		}
+		return nextDst;
+	}
+
+	if(rule) {
+		*rule = &stdRule;
+	}
+	return nextStd;
+}
+
 void Timezone::init(const TimeChangeRule& dstStart, const TimeChangeRule& stdStart)
 {
 	dstRule = dstStart;

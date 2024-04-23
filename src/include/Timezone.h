@@ -173,6 +173,14 @@ public:
 	}
 
 	/**
+	 * @brief Determine when the next change to/from DST is
+	 * @param utcFrom Point in time *after* which change is to occur
+	 * @param rule Optionally return the rule for the change
+	 * @retval time_t When the change will occur
+	 */
+	time_t getNextChange(time_t utcFrom, const TimeChangeRule** rule = nullptr);
+
+	/**
 	 * @brief Get reference to a timechange rule
 	 * @param isDst true for DST rule, false for STD rule
 	 * @retval TimeChangeRule
