@@ -6,10 +6,10 @@ import json
 
 ZONEINFO_PATH = '/usr/share/zoneinfo'
 TZDATA_PATH = ZONEINFO_PATH + '/tzdata.zi'
-INDENT = '  '
 
-class TzData(dict):
+class TzData:
     def __init__(self):
+        self.regions = {}
         self.comments = []
 
     def add_zone(self, zone: str):
@@ -22,10 +22,9 @@ class TzData(dict):
         if nl < 0:
             return
         info = data[nl+1:].decode("utf-8")
-        data = self
-        for seg in zone.split('/'):
-            data = data.setdefault(seg, {})
-        data['TZSTR'] = info
+        region_name, _, zone_name = zone.rpartition('/')
+        region_data = self.regions.setdefault(region_name, {})
+        region_data[zone_name] = info
 
     def load(self):
         for line in open(TZDATA_PATH):
@@ -33,9 +32,10 @@ class TzData(dict):
             if line.startswith('# '):
                 self.comments.append(line[2:])
                 continue
-            line = line.split()
-            if line[0] == 'Z':
-                self.add_zone(line[1])
+            line, _, _ = line.partition('#')
+            fields = line.split()
+            if fields[0] == 'Z':
+                self.add_zone(fields[1])
 
     def print(self, f, define: bool):
         print(file=f)
@@ -43,28 +43,43 @@ class TzData(dict):
             print(f'// {c}', file=f)
         print(file=f)
 
-        def print_zone(indent, tag, value):
-            tag = tag.replace('-', '_N')
-            tag = tag.replace('+', '_P')
-            if isinstance(value, dict):
-                print(f'{indent}namespace {tag} {{', file=f)
-                for a, b in value.items():
-                    print_zone(indent + INDENT, a, b)
-                print(f'{indent}}} // namespace {tag}\n', file=f)
-            elif define:
-                print(f'{indent}DEFINE_FSTR({tag}, "{value}")', file=f)
+        print('namespace TZ {', file=f)
+        for region in sorted(self.regions):
+            if region:
+                region_tag = f'TZREGION_{region.replace('/', '_')}'
+                print(f'namespace {region.replace('/', '::')} {{', file=f)
             else:
-                print(f'{indent}DECLARE_FSTR({tag})', file=f)
-        print_zone('', 'TZ', self)
+                region_tag = 'TZREGION_NONE'
+            if define:
+                print(f'  DEFINE_FSTR_LOCAL({region_tag}, "{region}")', file=f)
+            for tag, value in self.regions[region].items():
+                tag = tag.replace('-', '_N')
+                tag = tag.replace('+', '_P')
+                if define:
+                    print(f'''
+  DEFINE_FSTR_LOCAL(TZNAME_{tag}, "{tag}")
+  DEFINE_FSTR_LOCAL(TZSTR_{tag}, "{value}")
+  const TzInfo {tag} PROGMEM {{
+      .region = {region_tag},
+      .name = TZNAME_{tag},
+      .rules = TZSTR_{tag},
+  }};''', file=f)
+                else:
+                    print(f'  extern const TzInfo {tag};', file=f)
+            if region:
+                print(f'}} // namespace {region}', file=f)
+            print(file=f)
+        print('} // namespace TZ', file=f)
 
 
 def create_file(filename: str):
     f = open(filename, 'w')
-    print(f'''
+    print(f'''\
 /*
  * This file is auto-generated.
  */
-''', file=f)
+
+// clang-format off''', file=f)
     return f
     
 
@@ -75,7 +90,25 @@ def main():
         print('''
 #pragma once
 
-#include <FlashString/String.hpp>
+#include <WString.h>
+
+struct TzInfo {
+    const FSTR::String& region;
+    const FSTR::String& name;
+    const FSTR::String& rules;
+
+    String fullName() const
+    {
+        String s;
+        if(region.length() != 0) {
+            s += region;
+            s += '/';
+        }
+        s += name;
+        return s;
+    }
+
+};
 ''', file=f)
         data.print(f, False)
     with create_file('tzdata.cpp') as f:
