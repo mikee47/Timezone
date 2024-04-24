@@ -22,11 +22,10 @@ class TzData(dict):
         if nl < 0:
             return
         info = data[nl+1:].decode("utf-8")
-        segs = zone.split('/')
         data = self
-        for seg in segs[:-1]:
+        for seg in zone.split('/'):
             data = data.setdefault(seg, {})
-        data[segs[-1]] = info
+        data['TZSTR'] = info
 
     def load(self):
         for line in open(TZDATA_PATH):
