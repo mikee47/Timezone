@@ -1,4 +1,8 @@
 #!/usr/bin/python3
+#
+# Decodes IANA timezone database into python structures which can then be emitted in various
+# formats as required by applications.
+#
 
 import os
 import sys
@@ -7,7 +11,10 @@ import re
 from datetime import datetime, timezone, timedelta
 from dataclasses import dataclass, field
 
+# Where to find IANA timezone database locally
 ZONEINFO_PATH = '/usr/share/zoneinfo'
+
+# Format described here https://data.iana.org/time-zones/data/zic.8.txt
 TZDATA_PATH = ZONEINFO_PATH + '/tzdata.zi'
 
 MONTH_NAMES = [
@@ -56,6 +63,14 @@ def match_day_name(name: str) -> str:
     if day:
         return day
     raise ValueError(f'Unknown day "{name}"')
+
+
+def make_tag(path: str) -> str:
+    return path.replace('/', '_')
+
+def make_namespace(path: str) -> str:
+    return path.replace('/', '::')
+
 
 @dataclass
 class Rule:
@@ -161,8 +176,36 @@ class ZoneRule:
         return f'{self.stdoff} {self.rule} {self.format} {self.until}'
 
 
+
 @dataclass
-class Zone:
+class NamedItem:
+    name: str
+
+    def __str__(self):
+        return self.name
+
+    def __lt__(self, other):
+        return self.name < str(other)
+
+    @property
+    def region(self) -> str:
+        return self.name.rpartition('/')[0]
+
+    @property
+    def zone_name(self) -> str:
+        return self.name.rpartition('/')[2]
+
+    @property
+    def namespace(self) -> str:
+        return make_namespace(self.region)
+
+    @property
+    def tag(self) -> str:
+        return self.zone_name.replace('-', '_N').replace('+', '_P')
+
+
+@dataclass
+class Zone(NamedItem):
     tzstr: str
     rules: list[ZoneRule] = field(default_factory=list)
 
@@ -175,30 +218,23 @@ class Zone:
         self.rules.append(rule)
         return rule
 
+
 @dataclass
-class Link:
-    region_name: str
-    zone_name: str
+class Link(NamedItem):
     zone: Zone
 
-Region = dict[Zone | Link]
 
 class TzData:
     def __init__(self):
         self.comments = []
         self.rules = {}
-        self.regions: dict[Region] = {}
+        self.zones = []
 
     def add_rule(self, fields: list[str]) -> Rule:
         name = fields[1]
         rule = self.rules[name] = Rule(fields[2], fields[3], fields[5], fields[6], fields[7], fields[8], fields[9])
         return rule
 
-    @staticmethod
-    def split_zone_path(path: str) -> tuple[str, str]:
-       x = path.rpartition('/')
-       return (x[0], x[2])
- 
     def add_zone(self, fields: list[str]) -> Zone:
         name = fields[1]
         with open(os.path.join(ZONEINFO_PATH, name), "rb") as f:
@@ -210,22 +246,19 @@ class TzData:
         if nl < 0:
             return
         tzstr = data[nl+1:].decode("utf-8")
-        region_name, zone_name = self.split_zone_path(name)
-        region = self.regions.setdefault(region_name, Region())
-        zone = region[zone_name] = Zone(tzstr)
+        zone = Zone(name, tzstr)
         zone.add_rule(fields[2:])
+        self.zones.append(zone)
         return zone
 
     def add_link(self, fields: list[str]):
-        tgt_region_name, tgt_zone_name = self.split_zone_path(fields[1])
-        region_name, zone_name = self.split_zone_path(fields[2])
-        tgt_zone = self.regions[tgt_region_name][tgt_zone_name]
-        region = self.regions.setdefault(region_name, Region())
-        if zone_name in region:
-            print(f'{zone_name} already in region {region_name}')
-            print(fields)
-        else:
-            link = region[zone_name] = Link(tgt_region_name, tgt_zone_name, tgt_zone)
+        tgt_name, link_name = fields[1:3]
+        if link_name in self.zones:
+            print(f'{link_name} already specified, skipping')
+            return
+        zone = next(z for z in self.zones if z.name == tgt_name)
+        link = Link(link_name, zone)
+        self.zones.append(link)
 
     def load(self):
         zone = None
@@ -247,17 +280,8 @@ class TzData:
                 self.add_link(fields)
             elif zone:
                 zone.add_rule(fields)
+        self.zones.sort()
 
-    @staticmethod
-    def get_zone_tag(name: str) -> str:
-        return name.replace('-', '_N').replace('+', '_P')
-
-    @staticmethod
-    def get_full_name(region_name: str, zone_name: str) -> str:
-        if region_name:
-            return region_name + '/' + zone_name
-        return zone_name
-        
     def write_file(self, f, define: bool):
         f.write('\n')
         for c in self.comments:
@@ -265,33 +289,26 @@ class TzData:
         f.write('\n')
 
         f.write('namespace TZ {\n')
-        for region_name in sorted(self.regions):
-            if region_name:
-                region_tag = f'TZREGION_{region_name.replace('/', '_')}'
-                region_ns = region_name.replace('/', '::')
-                f.write(f'namespace {region_ns} {{\n')
+        for region in sorted(set(z.region for z in self.zones)):
+            if region:
+                region_tag = 'TZREGION_' + make_tag(region)
+                f.write(f'namespace {make_namespace(region)} {{\n')
             else:
                 region_tag = 'TZREGION_NONE'
             if define:
-                f.write(f'  DEFINE_FSTR_LOCAL({region_tag}, "{region_name}")\n')
-            region = self.regions[region_name]
-            for zone_name in sorted(region):
-                zone = region[zone_name]
-                tag = self.get_zone_tag(zone_name)
-                if isinstance(zone, Link):
-                    link = zone
-                    link_tag = self.get_zone_tag(link.zone_name)
-                else:
-                    link = None
+                f.write(f'  DEFINE_FSTR_LOCAL({region_tag}, "{region}")\n')
+            for zone in [z for z in self.zones if z.region == region]:
+                tag = zone.tag
                 if define:
                     f.write(f'''
   /*
-     {self.get_full_name(region_name, zone_name)}
+     {zone.name}
 ''')
-                    if link:
-                        tgt_region_ns = link.region_name.replace('/', '::')
+                    if isinstance(zone, Link):
+                        link = zone
+                        zone = link.zone
                         f.write(f'''  */
-  const TzInfo& {tag} PROGMEM = TZ::{tgt_region_ns}::{link_tag};
+  const TzInfo& {tag} PROGMEM = TZ::{zone.namespace}::{zone.tag};
 ''')
                         continue
                     for zr in zone.rules:
@@ -300,7 +317,7 @@ class TzData:
                         if r:
                             f.write(f'        {r}\n')
                     f.write(f'''  */
-  DEFINE_FSTR_LOCAL(TZNAME_{tag}, "{zone_name}")
+  DEFINE_FSTR_LOCAL(TZNAME_{tag}, "{zone.zone_name}")
   DEFINE_FSTR_LOCAL(TZSTR_{tag}, "{zone.tzstr}")
   const TzInfo {tag} PROGMEM {{
       .region = {region_tag},
@@ -308,16 +325,14 @@ class TzData:
       .rules = TZSTR_{tag},
   }};
 ''')
-                elif link:
-                    f.write(f'  extern const TzInfo& {tag};\n')
                 else:
-                    f.write(f'  extern const TzInfo {tag};\n')
-            if region_name:
-                f.write(f'}} // namespace {region_ns}\n')
+                    ref = '&' if isinstance(zone, Link) else ''
+                    f.write(f'  extern const TzInfo{ref} {tag};\n')
+            if region:
+                f.write(f'}} // namespace {make_namespace(region)}\n')
             f.write('\n')
         f.write('} // namespace TZ\n')
 
-        # print("\n".join(f'{k} = {v}' for k, v in self.links.items()))
 
 def create_file(filename: str):
     f = open(filename, 'w')
