@@ -3,17 +3,36 @@
 import os
 import sys
 import json
+from dataclasses import dataclass
 
 ZONEINFO_PATH = '/usr/share/zoneinfo'
 TZDATA_PATH = ZONEINFO_PATH + '/tzdata.zi'
 
+@dataclass
+class Rule:
+    name: str
+
+@dataclass
+class Zone:
+    tzstr: str
+
+    def update(self, fields: list[str]):
+        pass
+
+Region = dict[Zone]
+
 class TzData:
     def __init__(self):
+        self.rules = {}
         self.regions = {}
         self.comments = []
 
-    def add_zone(self, zone: str):
-        with open(os.path.join(ZONEINFO_PATH, zone), "rb") as f:
+    def add_rule(self, fields: list[str]) -> Rule:
+        return Rule(fields[1])
+
+    def add_zone(self, fields: list[str]) -> Zone:
+        name = fields[1]
+        with open(os.path.join(ZONEINFO_PATH, name), "rb") as f:
             data = f.read()
         if not data.startswith(b'TZif'):
             return
@@ -21,12 +40,17 @@ class TzData:
         nl = data.rfind(b'\n')
         if nl < 0:
             return
-        info = data[nl+1:].decode("utf-8")
-        region_name, _, zone_name = zone.rpartition('/')
-        region_data = self.regions.setdefault(region_name, {})
-        region_data[zone_name] = info
+        tzstr = data[nl+1:].decode("utf-8")
+        region_name, _, zone_name = name.rpartition('/')
+        region = self.regions.setdefault(region_name, Region())
+        zone = region[zone_name] = Zone(tzstr)
+        return zone
+
+    def add_link(self, fields: list[str]):
+        pass
 
     def load(self):
+        zone = None
         for line in open(TZDATA_PATH):
             line = line.strip()
             if line.startswith('# '):
@@ -34,8 +58,17 @@ class TzData:
                 continue
             line, _, _ = line.partition('#')
             fields = line.split()
-            if fields[0] == 'Z':
-                self.add_zone(fields[1])
+            rectype = fields[0]
+            if rectype == 'Z':
+                zone = self.add_zone(fields)
+            elif rectype == 'R':
+                zone = None
+                self.add_rule(fields)
+            elif rectype == 'L':
+                zone = None
+                self.add_link(fields)
+            elif zone:
+                zone.update(fields)
 
     def print(self, f, define: bool):
         print(file=f)
@@ -44,21 +77,22 @@ class TzData:
         print(file=f)
 
         print('namespace TZ {', file=f)
-        for region in sorted(self.regions):
-            if region:
-                region_tag = f'TZREGION_{region.replace('/', '_')}'
-                print(f'namespace {region.replace('/', '::')} {{', file=f)
+        for region_name in sorted(self.regions):
+            if region_name:
+                region_tag = f'TZREGION_{region_name.replace('/', '_')}'
+                region_ns = region_name.replace('/', '::')
+                print(f'namespace {region_ns} {{', file=f)
             else:
                 region_tag = 'TZREGION_NONE'
             if define:
-                print(f'  DEFINE_FSTR_LOCAL({region_tag}, "{region}")', file=f)
-            for tag, value in self.regions[region].items():
-                tag = tag.replace('-', '_N')
-                tag = tag.replace('+', '_P')
+                print(f'  DEFINE_FSTR_LOCAL({region_tag}, "{region_name}")', file=f)
+            region = self.regions[region_name]
+            for zone_name, zone in region.items():
+                tag = zone_name.replace('-', '_N').replace('+', '_P')
                 if define:
                     print(f'''
-  DEFINE_FSTR_LOCAL(TZNAME_{tag}, "{tag}")
-  DEFINE_FSTR_LOCAL(TZSTR_{tag}, "{value}")
+  DEFINE_FSTR_LOCAL(TZNAME_{tag}, "{zone_name}")
+  DEFINE_FSTR_LOCAL(TZSTR_{tag}, "{zone.tzstr}")
   const TzInfo {tag} PROGMEM {{
       .region = {region_tag},
       .name = TZNAME_{tag},
@@ -66,8 +100,8 @@ class TzData:
   }};''', file=f)
                 else:
                     print(f'  extern const TzInfo {tag};', file=f)
-            if region:
-                print(f'}} // namespace {region}', file=f)
+            if region_name:
+                print(f'}} // namespace {region_ns}', file=f)
             print(file=f)
         print('} // namespace TZ', file=f)
 
