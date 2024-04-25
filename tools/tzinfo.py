@@ -175,20 +175,30 @@ class Zone:
         self.rules.append(rule)
         return rule
 
+@dataclass
+class Link:
+    region_name: str
+    zone_name: str
+    zone: Zone
 
-Region = dict[Zone]
+Region = dict[Zone | Link]
 
 class TzData:
     def __init__(self):
-        self.rules = {}
-        self.regions = {}
         self.comments = []
+        self.rules = {}
+        self.regions: dict[Region] = {}
 
     def add_rule(self, fields: list[str]) -> Rule:
         name = fields[1]
         rule = self.rules[name] = Rule(fields[2], fields[3], fields[5], fields[6], fields[7], fields[8], fields[9])
         return rule
 
+    @staticmethod
+    def split_zone_path(path: str) -> tuple[str, str]:
+       x = path.rpartition('/')
+       return (x[0], x[2])
+ 
     def add_zone(self, fields: list[str]) -> Zone:
         name = fields[1]
         with open(os.path.join(ZONEINFO_PATH, name), "rb") as f:
@@ -200,14 +210,22 @@ class TzData:
         if nl < 0:
             return
         tzstr = data[nl+1:].decode("utf-8")
-        region_name, _, zone_name = name.rpartition('/')
+        region_name, zone_name = self.split_zone_path(name)
         region = self.regions.setdefault(region_name, Region())
         zone = region[zone_name] = Zone(tzstr)
         zone.add_rule(fields[2:])
         return zone
 
     def add_link(self, fields: list[str]):
-        pass
+        tgt_region_name, tgt_zone_name = self.split_zone_path(fields[1])
+        region_name, zone_name = self.split_zone_path(fields[2])
+        tgt_zone = self.regions[tgt_region_name][tgt_zone_name]
+        region = self.regions.setdefault(region_name, Region())
+        if zone_name in region:
+            print(f'{zone_name} already in region {region_name}')
+            print(fields)
+        else:
+            link = region[zone_name] = Link(tgt_region_name, tgt_zone_name, tgt_zone)
 
     def load(self):
         zone = None
@@ -230,6 +248,16 @@ class TzData:
             elif zone:
                 zone.add_rule(fields)
 
+    @staticmethod
+    def get_zone_tag(name: str) -> str:
+        return name.replace('-', '_N').replace('+', '_P')
+
+    @staticmethod
+    def get_full_name(region_name: str, zone_name: str) -> str:
+        if region_name:
+            return region_name + '/' + zone_name
+        return zone_name
+        
     def write_file(self, f, define: bool):
         f.write('\n')
         for c in self.comments:
@@ -247,13 +275,25 @@ class TzData:
             if define:
                 f.write(f'  DEFINE_FSTR_LOCAL({region_tag}, "{region_name}")\n')
             region = self.regions[region_name]
-            for zone_name, zone in region.items():
-                tag = zone_name.replace('-', '_N').replace('+', '_P')
+            for zone_name in sorted(region):
+                zone = region[zone_name]
+                tag = self.get_zone_tag(zone_name)
+                if isinstance(zone, Link):
+                    link = zone
+                    link_tag = self.get_zone_tag(link.zone_name)
+                else:
+                    link = None
                 if define:
                     f.write(f'''
   /*
-     {'/'.join([region_name, zone_name])}
+     {self.get_full_name(region_name, zone_name)}
 ''')
+                    if link:
+                        tgt_region_ns = link.region_name.replace('/', '::')
+                        f.write(f'''  */
+  const TzInfo& {tag} PROGMEM = TZ::{tgt_region_ns}::{link_tag};
+''')
+                        continue
                     for zr in zone.rules:
                         f.write(f'      {zr}\n')
                         r = self.rules.get(zr.rule)
@@ -267,7 +307,9 @@ class TzData:
       .name = TZNAME_{tag},
       .rules = TZSTR_{tag},
   }};
-  ''')
+''')
+                elif link:
+                    f.write(f'  extern const TzInfo& {tag};\n')
                 else:
                     f.write(f'  extern const TzInfo {tag};\n')
             if region_name:
@@ -275,6 +317,7 @@ class TzData:
             f.write('\n')
         f.write('} // namespace TZ\n')
 
+        # print("\n".join(f'{k} = {v}' for k, v in self.links.items()))
 
 def create_file(filename: str):
     f = open(filename, 'w')
