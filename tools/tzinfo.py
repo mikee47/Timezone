@@ -3,36 +3,159 @@
 import os
 import sys
 import json
+import re
+from datetime import datetime, timezone, timedelta
 from dataclasses import dataclass, field
 
 ZONEINFO_PATH = '/usr/share/zoneinfo'
 TZDATA_PATH = ZONEINFO_PATH + '/tzdata.zi'
 
+MONTH_NAMES = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+]
+
+DAY_NAMES = [
+    'Sunday',
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+]
+
+def match_name(values: list[str], name: str) -> str | None:
+    for v in values:
+        if v.startswith(name):
+            return v
+    return None
+
+def match_month_name(name: str) -> str:
+    month = match_name(MONTH_NAMES, name)
+    if month:
+        return month
+    raise ValueError(f'Unknown month "{name}"')
+
+def get_month_number(name: str) -> int:
+    name = match_name(MONTH_NAMES, name)
+    return 1 + MONTH_NAMES.index(name)
+
+def match_day_name(name: str) -> str:
+    day = match_name(DAY_NAMES, name)
+    if day:
+        return day
+    raise ValueError(f'Unknown day "{name}"')
+
 @dataclass
 class Rule:
-    from_: str
-    to: str
-    in_: str
-    on: str
-    at: str
+    from_: int # YEAR
+    to: int    # YEAR
+    in_: str   # MONTH
+    on: str    # DAY
+    at: str    # TIME of day
     save: str
     letters: str
 
-    # def __post_init__(self):
-    #     if self.from_.startswith('mi'):
-    #         self.from_ = 0
-    #     if self.to.startswith('o'):
-    #         self.to = self.from_
+    def __post_init__(self):
+        if self.from_.startswith('mi'):
+            self.from_ = 0
+        else:
+            self.from_ = int(self.from_)
+        if self.to.startswith('o'):
+            self.to = self.from_
+        elif self.to.startswith('ma'):
+            self.to = 9999
+        else:
+            self.to = int(self.to)
+        self.in_ = match_month_name(self.in_)[:3]
+        self.on = self.parse_on(self.on)
+
+    @staticmethod
+    def parse_on(value: str) -> str:
+        if value.startswith('last'):
+            return 'last' + match_day_name(value[4:])[:3]
+        if '0' <= value[0] <= '9':
+            return value
+        day = re.match('[a-zA-Z]+', value)[0]
+        tail = value.removeprefix(day)
+        day = match_day_name(day)[:3]
+        return day + tail
 
     def __str__(self):
         return f'{self.from_} {self.to} - {self.in_} {self.on} {self.at} {self.save} {self.letters}'
+
+    def applies_to_year(self, year: int) -> bool:
+        return self.from_ <= year <= self.to
+
 
 @dataclass
 class ZoneRule:
     stdoff: str
     rule: str
     format: str
-    until: str
+    until: list | datetime
+
+    def __post_init__(self):
+        hr, min, sec, timefmt = self.decode_at(self.stdoff)
+        assert(not timefmt)
+        self.stdoff = f'{hr:02d}:{min:02d}:{sec:02d}'
+
+        fields = self.until
+        if not fields:
+            self.until = None
+            return
+        # YEAR
+        year = int(fields.pop(0))
+        if fields:
+            # MONTH (Rule IN)
+            month = match_month_name(fields.pop(0))[:3]
+        else:
+            month = 'Jan'
+        if fields:
+            # DAY (Rule ON)
+            day = Rule.parse_on(fields.pop(0))
+        else:
+            day = 1
+        if fields:
+            # TIME (Rule AT)
+            hr, min, sec, timefmt = self.decode_at(fields.pop(0))
+            assert(not fields)
+            time = f'{hr:02d}:{min:02d}:{sec:02d}'
+        else:
+            hr, min, sec, timefmt = 0, 0, 0, ''
+            time = '00:00:00'
+        try:
+            dt = datetime.fromisoformat(f'{year}-{get_month_number(month):02d}-{int(day):02d}')
+            dt += timedelta(hours=hr, minutes=min, seconds=sec)
+            self.until = dt
+        except:
+            self.until = [year, month, day, time, timefmt]
+            print(self.until)
+
+    @staticmethod
+    def decode_at(s: str) -> tuple[int, int, int, str]:
+        timefmt = s[-1]
+        if 'a' <= timefmt <= 'z':
+            s = s[:-1]
+        else:
+            timefmt = ''
+        s = s.split(':')
+        hr = int(s.pop(0)) if s else 0
+        min = int(s.pop(0)) if s else 0
+        sec = int(s.pop(0)) if s else 0
+        return (hr, min, sec, timefmt)
+
 
     def __str__(self):
         return f'{self.stdoff} {self.rule} {self.format} {self.until}'
@@ -47,7 +170,7 @@ class Zone:
         stdoff = fields.pop(0)
         rule = fields.pop(0)
         format = fields.pop(0)
-        until = fields.pop(0) if fields else None
+        until = fields
         rule = ZoneRule(stdoff, rule, format, until)
         self.rules.append(rule)
         return rule
@@ -64,8 +187,6 @@ class TzData:
     def add_rule(self, fields: list[str]) -> Rule:
         name = fields[1]
         rule = self.rules[name] = Rule(fields[2], fields[3], fields[5], fields[6], fields[7], fields[8], fields[9])
-        # yr_from = int(rule.from_)
-        # yr_to = int(rule.to)
         return rule
 
     def add_zone(self, fields: list[str]) -> Zone:
