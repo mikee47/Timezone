@@ -109,22 +109,22 @@ class TzData:
             elif zone:
                 zone.add_rule(fields)
 
-    def print(self, f, define: bool):
-        print(file=f)
+    def write_file(self, f, define: bool):
+        f.write('\n')
         for c in self.comments:
-            print(f'// {c}', file=f)
-        print(file=f)
+            f.write(f'// {c}\n')
+        f.write('\n')
 
-        print('namespace TZ {', file=f)
+        f.write('namespace TZ {\n')
         for region_name in sorted(self.regions):
             if region_name:
                 region_tag = f'TZREGION_{region_name.replace('/', '_')}'
                 region_ns = region_name.replace('/', '::')
-                print(f'namespace {region_ns} {{', file=f)
+                f.write(f'namespace {region_ns} {{\n')
             else:
                 region_tag = 'TZREGION_NONE'
             if define:
-                print(f'  DEFINE_FSTR_LOCAL({region_tag}, "{region_name}")', file=f)
+                f.write(f'  DEFINE_FSTR_LOCAL({region_tag}, "{region_name}")\n')
             region = self.regions[region_name]
             for zone_name, zone in region.items():
                 tag = zone_name.replace('-', '_N').replace('+', '_P')
@@ -134,34 +134,36 @@ class TzData:
      {'/'.join([region_name, zone_name])}
 ''')
                     for zr in zone.rules:
-                        print(f'      {zr}', file=f)
+                        f.write(f'      {zr}\n')
                         r = self.rules.get(zr.rule)
                         if r:
-                            print(f'        {self.rules[zr.rule]}', file=f)
-                    print(f'''  */
+                            f.write(f'        {r}\n')
+                    f.write(f'''  */
   DEFINE_FSTR_LOCAL(TZNAME_{tag}, "{zone_name}")
   DEFINE_FSTR_LOCAL(TZSTR_{tag}, "{zone.tzstr}")
   const TzInfo {tag} PROGMEM {{
       .region = {region_tag},
       .name = TZNAME_{tag},
       .rules = TZSTR_{tag},
-  }};''', file=f)
+  }};
+  ''')
                 else:
-                    print(f'  extern const TzInfo {tag};', file=f)
+                    f.write(f'  extern const TzInfo {tag};\n')
             if region_name:
-                print(f'}} // namespace {region_ns}', file=f)
-            print(file=f)
-        print('} // namespace TZ', file=f)
+                f.write(f'}} // namespace {region_ns}\n')
+            f.write('\n')
+        f.write('} // namespace TZ\n')
 
 
 def create_file(filename: str):
     f = open(filename, 'w')
-    print(f'''\
+    f.write(f'''\
 /*
  * This file is auto-generated.
  */
 
-// clang-format off''', file=f)
+// clang-format off
+''')
     return f
     
 
@@ -169,7 +171,7 @@ def main():
     data = TzData()
     data.load()
     with create_file('tzdata.h') as f:
-        print('''
+        f.write('''
 #pragma once
 
 #include <WString.h>
@@ -191,13 +193,13 @@ struct TzInfo {
     }
 
 };
-''', file=f)
-        data.print(f, False)
+''')
+        data.write_file(f, False)
     with create_file('tzdata.cpp') as f:
-        print('''
+        f.write('''
 #include "tzdata.h"
-''', file=f)
-        data.print(f, True)
+''')
+        data.write_file(f, True)
 
 
 if __name__ == '__main__':
