@@ -8,7 +8,8 @@ import os
 import sys
 import json
 import re
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, date, timezone, timedelta
+import calendar
 from dataclasses import dataclass, field
 
 # Where to find IANA timezone database locally
@@ -80,49 +81,52 @@ def make_namespace(path: str) -> str:
 class On:
     expr: str
 
-    # def __init__(self, value: str):
-    #     if value.startswith('last'):
-    #         self.expr = 'last' + match_day_name(value[4:])[:3]
-    #     elif '0' <= value[0] <= '9':
-    #         self.expr = value
-    #     else:
-    #         day = re.match('[a-zA-Z]+', value)[0]
-    #         tail = value.removeprefix(day)
-    #         day = match_day_name(day)[:3]
-    #         self.expr = day + tail
-
     def __str__(self):
         return self.expr
 
-    def get_day(self, year: int, month: str | int):
+    def get_date(self, year: int, month: str | int) -> date:
+        """Get effective date for given year/month"""
+        if isinstance(month, str):
+            month = get_month_number(month)
         value = self.expr
+        if value[0].isdigit():
+            # 5        the fifth of the month
+            return date(year, month, int(value))
+
         if value.startswith('last'):
             # lastSun  the last Sunday in the month
             # lastMon  the last Monday in the month
-            day = get_day_number(value[4:])
-        elif '0' <= value[0] <= '9':
-            # 5        the fifth of the month
-            return int(value)
+            weekday = get_day_number(value[4:])
+            day = calendar.monthrange(year, month)[1]
+            want_prev = True
         else:
             # Sun>=8   first Sunday on or after the eighth
             # Sun<=25  last Sunday on or before the 25th
             # The “<=” and “>=” constructs can result in a day in the neighboring month; for example, the
             # IN-ON combination “Oct Sun>=31” stands for the first Sunday on or after October 31,
             # even if that Sunday occurs in November.
-            day = re.match('[a-zA-Z]+', value)[0]
-            tail = value.removeprefix(day)
-            day = get_day_number(day)
+            weekday = re.match('[a-zA-Z]+', value)[0]
+            tail = value[len(weekday):]
+            weekday = get_day_number(weekday)
+            day = int(tail[2:])
             if tail.startswith('>='):
-                assert(false)
+                want_prev = False
             elif tail.startswith('<='):
-                assert(false)
+                want_prev = True
             else:
-                assert(false)
-            self.expr = day + tail
+                raise ValueError(f'Malformed ON expression "{self.expr}"')
 
-        if isinstance(month, str):
-            month = get_month_number(month)
-
+        d = date(year, month, day)
+        wday = (d.weekday() + 1) % 7 # Start from Sunday, not Monday
+        diff = weekday - wday
+        if want_prev:
+            if diff > 0:
+                diff -= 7
+        elif diff < 0:
+            diff += 7
+        # may extend outside starting month so use ordinal for calculation
+        ordinal = d.toordinal() + diff
+        return date.fromordinal(ordinal)
 
 
 @dataclass
@@ -186,24 +190,18 @@ class Until:
 
     def __str__(self):
         return f'{self.year}/{self.month}/{self.day} {str(self.at)}' if self else ''
-        # try:
-        #     day = self.day.get_day(self.year, self.month)
-        #     dt = datetime.fromisoformat(f'{self.year}-{get_month_number(self.month):02d}-{day:02d}')
-        #     dt += self.at.delta
-        #     return str(dt)
-        # except:
-        #     print(repr(self))
-        #     return f'{self.year}/{self.month}/{self.day} {str(self.at)}'
 
     def applies_to(self, dt: datetime) -> bool:
         if dt is None or not self:
             return True
-        if self.year < dt.year:
-            return False
-        if get_month_number(self.month) < dt.month:
-            return False
-        return True
+        d = self.day.get_date(self.year, self.month)
+        return dt.date() < d
 
+    def get_datetime(self, year: int) -> datetime:
+        if not self:
+            return None
+        d = self.day.get_date(year, self.month)
+        return datetime(d.year, d.month, d.day, tzinfo=timezone.utc) + at.delta
 
 @dataclass
 class Rule:
@@ -211,8 +209,8 @@ class Rule:
     to: int    # YEAR
     in_: str   # MONTH
     on: On     # DAY
-    at: str    # TIME of day
-    save: str
+    at: At     # TIME of day
+    save: At
     letters: str
 
     def __post_init__(self):
@@ -228,6 +226,8 @@ class Rule:
             self.to = int(self.to)
         self.in_ = match_month_name(self.in_)[:3]
         self.on = On(self.on)
+        self.at = At(self.at)
+        self.save = At(self.save)
 
     def __str__(self):
         return f'{self.from_} {self.to} - {self.in_} {self.on} {self.at} {self.save} {self.letters}'
@@ -236,6 +236,10 @@ class Rule:
         if dt is None:
             return True
         return self.from_ <= dt.year <= self.to
+
+    def get_datetime(self, year: int) -> datetime:
+        d = self.on.get_date(year, self.in_)
+        return datetime(d.year, d.month, d.day, tzinfo=timezone.utc) + self.at.delta
 
 
 @dataclass
