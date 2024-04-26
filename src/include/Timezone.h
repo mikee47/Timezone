@@ -58,12 +58,13 @@ enum __attribute__((packed)) month_t {
  * and when standard time begins
  */
 struct TimeChangeRule {
-	char tag[6];   ///< e.g. DST, UTC, etc.
-	week_t week;   ///< First, Second, Third, Fourth, or Last week of the month
-	dow_t dow;	 ///< Day of week, 0=Sun
-	month_t month; ///< 1=Jan
-	uint8_t hour;  ///< 0-23
-	int offset;	///< Offset from UTC in minutes
+	char tag[6];	 ///< e.g. DST, UTC, etc.
+	week_t week : 4; ///< First, Second, Third, Fourth, or Last week of the month
+	dow_t dow : 4;   ///< Day of week, 0=Sun
+	month_t month;   ///< 1=Jan
+	uint8_t hour;	///< 0-23
+	uint8_t minute;  ///< 0-59
+	int16_t offset;  ///< Offset from UTC in minutes
 
 	/**
 	 * @brief Convert the given time change rule to a time_t value for the given year

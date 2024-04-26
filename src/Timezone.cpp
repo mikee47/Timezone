@@ -120,7 +120,7 @@ time_t TimeChangeRule::operator()(unsigned year) const
 	// calculate first day of the month, or for "Last" rules, first day of the next month
 	DateTime dt;
 	dt.Hour = hour;
-	dt.Minute = 0;
+	dt.Minute = minute;
 	dt.Second = 0;
 	dt.Day = 1;
 	dt.Month = m - month_t::Jan; // Zero-based
