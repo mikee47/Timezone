@@ -21,11 +21,11 @@
 
 // convenient constants for TimeChangeRules
 enum __attribute__((packed)) week_t {
-	Last,
 	First,
 	Second,
 	Third,
 	Fourth,
+	Last,
 };
 
 enum __attribute__((packed)) dow_t {
