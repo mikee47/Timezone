@@ -64,6 +64,10 @@ def match_day_name(name: str) -> str:
         return day
     raise ValueError(f'Unknown day "{name}"')
 
+def get_day_number(name: str) -> int:
+    name = match_name(DAY_NAMES, name)
+    return DAY_NAMES.index(name)
+
 
 def make_tag(path: str) -> str:
     return path.replace('/', '_')
@@ -73,45 +77,52 @@ def make_namespace(path: str) -> str:
 
 
 @dataclass
-class Rule:
-    from_: int # YEAR
-    to: int    # YEAR
-    in_: str   # MONTH
-    on: str    # DAY
-    at: str    # TIME of day
-    save: str
-    letters: str
+class On:
+    expr: str
 
-    def __post_init__(self):
-        if self.from_.startswith('mi'):
-            self.from_ = 0
-        else:
-            self.from_ = int(self.from_)
-        if self.to.startswith('o'):
-            self.to = self.from_
-        elif self.to.startswith('ma'):
-            self.to = 9999
-        else:
-            self.to = int(self.to)
-        self.in_ = match_month_name(self.in_)[:3]
-        self.on = self.parse_on(self.on)
-
-    @staticmethod
-    def parse_on(value: str) -> str:
-        if value.startswith('last'):
-            return 'last' + match_day_name(value[4:])[:3]
-        if '0' <= value[0] <= '9':
-            return value
-        day = re.match('[a-zA-Z]+', value)[0]
-        tail = value.removeprefix(day)
-        day = match_day_name(day)[:3]
-        return day + tail
+    # def __init__(self, value: str):
+    #     if value.startswith('last'):
+    #         self.expr = 'last' + match_day_name(value[4:])[:3]
+    #     elif '0' <= value[0] <= '9':
+    #         self.expr = value
+    #     else:
+    #         day = re.match('[a-zA-Z]+', value)[0]
+    #         tail = value.removeprefix(day)
+    #         day = match_day_name(day)[:3]
+    #         self.expr = day + tail
 
     def __str__(self):
-        return f'{self.from_} {self.to} - {self.in_} {self.on} {self.at} {self.save} {self.letters}'
+        return self.expr
 
-    def applies_to_year(self, year: int) -> bool:
-        return self.from_ <= year <= self.to
+    def get_day(self, year: int, month: str | int):
+        value = self.expr
+        if value.startswith('last'):
+            # lastSun  the last Sunday in the month
+            # lastMon  the last Monday in the month
+            day = get_day_number(value[4:])
+        elif '0' <= value[0] <= '9':
+            # 5        the fifth of the month
+            return int(value)
+        else:
+            # Sun>=8   first Sunday on or after the eighth
+            # Sun<=25  last Sunday on or before the 25th
+            # The “<=” and “>=” constructs can result in a day in the neighboring month; for example, the
+            # IN-ON combination “Oct Sun>=31” stands for the first Sunday on or after October 31,
+            # even if that Sunday occurs in November.
+            day = re.match('[a-zA-Z]+', value)[0]
+            tail = value.removeprefix(day)
+            day = get_day_number(day)
+            if tail.startswith('>='):
+                assert(false)
+            elif tail.startswith('<='):
+                assert(false)
+            else:
+                assert(false)
+            self.expr = day + tail
+
+        if isinstance(month, str):
+            month = get_month_number(month)
+
 
 
 @dataclass
@@ -129,10 +140,13 @@ class At:
             s = s[:-1]
         else:
             self.timefmt = ''
-        s = s.split(':')
-        self.hour = int(s.pop(0)) if s else 0
-        self.min = int(s.pop(0)) if s else 0
-        self.sec = int(s.pop(0)) if s else 0
+        fields = s.split(':')
+        if fields:
+            self.hour = int(fields.pop(0))
+        if fields:
+            self.min = int(fields.pop(0))
+        if fields:
+            self.sec = int(fields.pop(0))
 
     def __str__(self):
         return f'{self.hour:02d}:{self.min:02d}:{self.sec:02d}{self.timefmt}'
@@ -141,12 +155,11 @@ class At:
     def delta(self):
         return timedelta(hours=self.hour, minutes=self.min, seconds=self.sec)
 
-
 @dataclass
 class Until:
     year: int = None
     month: str = 'Jan'
-    day: int = 1
+    day: On = None
     at: At = None
 
     def __init__(self, fields: list[str]):
@@ -158,7 +171,9 @@ class Until:
             self.month = match_month_name(fields.pop(0))[:3]
         if fields:
             # DAY (Rule ON)
-            self.day = Rule.parse_on(fields.pop(0))
+            self.day = On(fields.pop(0))
+        else:
+            self.day = On('1')
         if fields:
             # TIME (Rule AT)
             self.at = At(fields.pop(0))
@@ -166,15 +181,61 @@ class Until:
         else:
             self.at = At()
 
+    def __bool__(self):
+        return self.year is not None
+
     def __str__(self):
-        if self.year is None:
-            return ''
-        try:
-            dt = datetime.fromisoformat(f'{self.year}-{get_month_number(self.month):02d}-{self.day:02d}')
-            dt += self.at.delta
-            return str(dt)
-        except:
-            return f'{self.year}/{self.month}/{self.day} {str(self.at)}'
+        return f'{self.year}/{self.month}/{self.day} {str(self.at)}' if self else ''
+        # try:
+        #     day = self.day.get_day(self.year, self.month)
+        #     dt = datetime.fromisoformat(f'{self.year}-{get_month_number(self.month):02d}-{day:02d}')
+        #     dt += self.at.delta
+        #     return str(dt)
+        # except:
+        #     print(repr(self))
+        #     return f'{self.year}/{self.month}/{self.day} {str(self.at)}'
+
+    def applies_to(self, dt: datetime) -> bool:
+        if dt is None or not self:
+            return True
+        if self.year < dt.year:
+            return False
+        if get_month_number(self.month) < dt.month:
+            return False
+        return True
+
+
+@dataclass
+class Rule:
+    from_: int # YEAR
+    to: int    # YEAR
+    in_: str   # MONTH
+    on: On     # DAY
+    at: str    # TIME of day
+    save: str
+    letters: str
+
+    def __post_init__(self):
+        if self.from_.startswith('mi'):
+            self.from_ = 0
+        else:
+            self.from_ = int(self.from_)
+        if self.to.startswith('o'):
+            self.to = self.from_
+        elif self.to.startswith('ma'):
+            self.to = 9999
+        else:
+            self.to = int(self.to)
+        self.in_ = match_month_name(self.in_)[:3]
+        self.on = On(self.on)
+
+    def __str__(self):
+        return f'{self.from_} {self.to} - {self.in_} {self.on} {self.at} {self.save} {self.letters}'
+
+    def applies_to(self, dt: datetime) -> bool:
+        if dt is None:
+            return True
+        return self.from_ <= dt.year <= self.to
 
 
 @dataclass
@@ -190,8 +251,13 @@ class ZoneRule:
         self.stdoff = str(at)
 
     def __str__(self):
-        return f'{self.stdoff} {self.rule} {self.format} {self.until}'
+        s = f'{self.stdoff} {self.rule} {self.format}'
+        if self.until:
+            s += f' {self.until}'
+        return s
 
+    def applies_to(self, dt: datetime) -> bool:
+        return self.until.applies_to(dt)
 
 
 @dataclass
@@ -244,12 +310,14 @@ class Link(NamedItem):
 class TzData:
     def __init__(self):
         self.comments = []
-        self.rules = {}
-        self.zones = []
+        self.rules: dict[list[Rule]] = {}
+        self.zones: list[Zone | Link] = []
 
     def add_rule(self, fields: list[str]) -> Rule:
         name = fields[1]
-        rule = self.rules[name] = Rule(fields[2], fields[3], fields[5], fields[6], fields[7], fields[8], fields[9])
+        rule = Rule(fields[2], fields[3], fields[5], fields[6], fields[7], fields[8], fields[9])
+        rules = self.rules.setdefault(name, [])
+        rules.append(rule)
         return rule
 
     def add_zone(self, fields: list[str]) -> Zone:
@@ -300,6 +368,7 @@ class TzData:
         self.zones.sort()
 
     def write_file(self, f, define: bool):
+        now = datetime.now(timezone.utc)
         f.write('\n')
         for c in self.comments:
             f.write(f'// {c}\n')
@@ -329,10 +398,21 @@ class TzData:
 ''')
                         continue
                     for zr in zone.rules:
+                        if not zr.applies_to(now):
+                            continue
                         f.write(f'      {zr}\n')
-                        r = self.rules.get(zr.rule)
-                        if r:
-                            f.write(f'        {r}\n')
+                        if zr.until.year:
+                            print(zone, zr)
+
+                        rules = self.rules.get(zr.rule)
+                        if rules:
+                            for r in rules:
+                                if r.applies_to(now):
+                                    f.write(f'        {r}\n')
+                        elif zr.rule == '-':
+                            pass
+                        else:
+                            f.write(f'        {zr.rule}\n')
                     f.write(f'''  */
   DEFINE_FSTR_LOCAL(TZNAME_{tag}, "{zone.zone_name}")
   DEFINE_FSTR_LOCAL(TZSTR_{tag}, "{zone.tzstr}")
