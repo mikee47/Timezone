@@ -115,62 +115,79 @@ class Rule:
 
 
 @dataclass
+class At:
+    hour: int = 0
+    min: int = 0
+    sec: int = 0
+    timefmt: str = ''
+
+    def __init__(self, s: str = None):
+        if s is None:
+            return
+        self.timefmt = s[-1]
+        if 'a' <= self.timefmt <= 'z':
+            s = s[:-1]
+        else:
+            self.timefmt = ''
+        s = s.split(':')
+        self.hour = int(s.pop(0)) if s else 0
+        self.min = int(s.pop(0)) if s else 0
+        self.sec = int(s.pop(0)) if s else 0
+
+    def __str__(self):
+        return f'{self.hour:02d}:{self.min:02d}:{self.sec:02d}{self.timefmt}'
+
+    @property
+    def delta(self):
+        return timedelta(hours=self.hour, minutes=self.min, seconds=self.sec)
+
+
+@dataclass
+class Until:
+    year: int = None
+    month: str = 'Jan'
+    day: int = 1
+    at: At = None
+
+    def __init__(self, fields: list[str]):
+        if fields:
+            # YEAR
+            self.year = int(fields.pop(0))
+        if fields:
+            # MONTH (Rule IN)
+            self.month = match_month_name(fields.pop(0))[:3]
+        if fields:
+            # DAY (Rule ON)
+            self.day = Rule.parse_on(fields.pop(0))
+        if fields:
+            # TIME (Rule AT)
+            self.at = At(fields.pop(0))
+            assert(not fields)
+        else:
+            self.at = At()
+
+    def __str__(self):
+        if self.year is None:
+            return ''
+        try:
+            dt = datetime.fromisoformat(f'{self.year}-{get_month_number(self.month):02d}-{self.day:02d}')
+            dt += self.at.delta
+            return str(dt)
+        except:
+            return f'{self.year}/{self.month}/{self.day} {str(self.at)}'
+
+
+@dataclass
 class ZoneRule:
     stdoff: str
     rule: str
     format: str
-    until: list | datetime
+    until: Until
 
     def __post_init__(self):
-        hr, min, sec, timefmt = self.decode_at(self.stdoff)
-        assert(not timefmt)
-        self.stdoff = f'{hr:02d}:{min:02d}:{sec:02d}'
-
-        fields = self.until
-        if not fields:
-            self.until = None
-            return
-        # YEAR
-        year = int(fields.pop(0))
-        if fields:
-            # MONTH (Rule IN)
-            month = match_month_name(fields.pop(0))[:3]
-        else:
-            month = 'Jan'
-        if fields:
-            # DAY (Rule ON)
-            day = Rule.parse_on(fields.pop(0))
-        else:
-            day = 1
-        if fields:
-            # TIME (Rule AT)
-            hr, min, sec, timefmt = self.decode_at(fields.pop(0))
-            assert(not fields)
-            time = f'{hr:02d}:{min:02d}:{sec:02d}'
-        else:
-            hr, min, sec, timefmt = 0, 0, 0, ''
-            time = '00:00:00'
-        try:
-            dt = datetime.fromisoformat(f'{year}-{get_month_number(month):02d}-{int(day):02d}')
-            dt += timedelta(hours=hr, minutes=min, seconds=sec)
-            self.until = dt
-        except:
-            self.until = [year, month, day, time, timefmt]
-            print(self.until)
-
-    @staticmethod
-    def decode_at(s: str) -> tuple[int, int, int, str]:
-        timefmt = s[-1]
-        if 'a' <= timefmt <= 'z':
-            s = s[:-1]
-        else:
-            timefmt = ''
-        s = s.split(':')
-        hr = int(s.pop(0)) if s else 0
-        min = int(s.pop(0)) if s else 0
-        sec = int(s.pop(0)) if s else 0
-        return (hr, min, sec, timefmt)
-
+        at = At(self.stdoff)
+        assert(not at.timefmt)
+        self.stdoff = str(at)
 
     def __str__(self):
         return f'{self.stdoff} {self.rule} {self.format} {self.until}'
@@ -213,7 +230,7 @@ class Zone(NamedItem):
         stdoff = fields.pop(0)
         rule = fields.pop(0)
         format = fields.pop(0)
-        until = fields
+        until = Until(fields)
         rule = ZoneRule(stdoff, rule, format, until)
         self.rules.append(rule)
         return rule
