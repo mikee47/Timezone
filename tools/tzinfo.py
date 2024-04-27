@@ -376,6 +376,9 @@ class TzData:
         f.write('\n')
         for c in self.comments:
             f.write(f'// {c}\n')
+        zone_count = len([x for x in self.zones if isinstance(x, Zone)])
+        link_count = len(self.zones) - zone_count
+        f.write(f'// Contains {zone_count} zones and {link_count} links.\n')
         f.write('\n')
 
         f.write('namespace TZ {\n')
@@ -388,23 +391,24 @@ class TzData:
             if define:
                 f.write(f'  DEFINE_FSTR_LOCAL({region_tag}, "{region}")\n')
             for zone in [z for z in self.zones if z.region == region]:
+                indent = '   *'
                 tag = zone.tag
                 if define:
                     f.write(f'''
   /*
-     {zone.name}
+{indent} {zone.name}
 ''')
                     if isinstance(zone, Link):
                         link = zone
                         zone = link.zone
-                        f.write(f'''  */
+                        f.write(f'''{indent}/
   const TzInfo& {tag} PROGMEM = TZ::{zone.namespace}::{zone.tag};
 ''')
                         continue
                     for zr in zone.rules:
                         if not zr.applies_to(now):
                             continue
-                        f.write(f'      {zr}\n')
+                        f.write(f'{indent} {zr}\n')
                         if zr.until.year:
                             print(zone, zr)
 
@@ -412,12 +416,12 @@ class TzData:
                         if rules:
                             for r in rules:
                                 if r.applies_to(now):
-                                    f.write(f'        {r}\n')
+                                    f.write(f'{indent}   {r}\n')
                         elif zr.rule == '-':
                             pass
                         else:
-                            f.write(f'        {zr.rule}\n')
-                    f.write(f'''  */
+                            f.write(f'{indent}  {zr.rule}\n')
+                    f.write(f'''{indent}/
   DEFINE_FSTR_LOCAL(TZNAME_{tag}, "{zone.zone_name}")
   DEFINE_FSTR_LOCAL(TZSTR_{tag}, "{zone.tzstr}")
   const TzInfo {tag} PROGMEM {{
