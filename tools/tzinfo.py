@@ -77,6 +77,7 @@ def make_namespace(path: str) -> str:
     return path.replace('/', '::')
 
 
+
 @dataclass
 class On:
     expr: str
@@ -202,6 +203,59 @@ class Until:
             return None
         d = self.day.get_date(year, self.month)
         return datetime(d.year, d.month, d.day, tzinfo=timezone.utc) + at.delta
+
+
+@dataclass
+class PosixExpr:
+    month: int = 0  # 1 <= month <= 12
+    week: int = 0   # 1 <= week <= 5 (5 indicates 'last')
+    day: int = 0    # 0=Sunday
+    time: At = None
+
+    def __init__(self, expr: str):
+        m = re.match(r'M(\d+)\.(\d+)\.(\d+)/?(.+)?', expr)
+        g = m.groups()
+        self.month = int(g[0])
+        self.week = int(g[1])
+        self.day = int(g[2])
+        self.time = At(g[3])
+
+    def __str__(self):
+        return f'{self.month}.{self.week}.{self.day}/{self.time}'
+
+
+@dataclass
+class TzString:
+    std_name: str = ''
+    std_offset: str = ''
+    dst_name: str = ''
+    dst_offset: str = '0'
+    std_expr: PosixExpr = None
+    dst_expr: PosixExpr = None
+
+    def __init__(self, tzstr: str):
+        assert(tzstr[0] != ':')
+
+        m = re.match(r'''
+            (<[^>]+>|[a-zA-Z]+)([\d:\-+]+)      # std offset
+            (<[^>]+>|[a-zA-Z]+)?([\d:\-+]+)?    # [ dst [offset]
+            ,?([^,]+)?,?([^,]+)?                # [ , date [ / time ] [,date[/time]] ]
+            ''', tzstr, flags=re.VERBOSE)
+        g = m.groups()
+        self.std_name = g[0].strip('<>')
+        self.std_offset = g[1]
+        if g[2]:
+            self.dst_name = g[2].strip('<>')
+        if g[3]:
+            self.dst_offset = g[3]
+        if g[4]:
+            self.std_expr = PosixExpr(g[4])
+        if g[5]:
+            self.dst_expr = PosixExpr(g[5])
+
+    def __str__(self):
+        return f'"{self.std_name}" {self.std_offset}, "{self.dst_name}" {self.dst_offset}, {self.std_expr}, {self.dst_expr}'
+
 
 @dataclass
 class Rule:
@@ -405,6 +459,9 @@ class TzData:
   const TzInfo& {tag} PROGMEM = TZ::{zone.namespace}::{zone.tag};
 ''')
                         continue
+
+                    f.write(f'{indent}   {TzString(zone.tzstr)}\n')
+
                     for zr in zone.rules:
                         if not zr.applies_to(now):
                             continue
