@@ -359,6 +359,9 @@ class Zone(NamedItem):
         self.rules.append(rule)
         return rule
 
+    def get_rules(self, dt: datetime) -> list[ZoneRule]:
+        return [zr for zr in self.rules if zr.applies_to(dt)]
+
 
 @dataclass
 class Link(NamedItem):
@@ -377,6 +380,10 @@ class TzData:
         rules = self.rules.setdefault(name, [])
         rules.append(rule)
         return rule
+
+    def get_rules(self, name: str, dt: datetime) -> list[Rule]:
+        rules = self.rules.get(name)
+        return [r for r in rules if r.applies_to(dt)] if rules else []
 
     def add_zone(self, fields: list[str]) -> Zone:
         name = fields[1]
@@ -478,18 +485,13 @@ class TzData:
 
                     f.write(f'{indent}   {TzString(zone.tzstr)}\n')
 
-                    for zr in zone.rules:
-                        if not zr.applies_to(now):
-                            continue
+                    for zr in zone.get_rules(now):
                         f.write(f'{indent} {zr}\n')
-                        if zr.until.year:
-                            print(zone, zr)
 
-                        rules = self.rules.get(zr.rule)
+                        rules = self.get_rules(zr.rule, now)
                         if rules:
                             for r in rules:
-                                if r.applies_to(now):
-                                    f.write(f'{indent}   {r}\n')
+                                f.write(f'{indent}   {r}\n')
                         elif zr.rule == '-':
                             pass
                         else:
