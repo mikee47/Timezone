@@ -298,7 +298,7 @@ class Rule:
 
 @dataclass
 class ZoneRule:
-    stdoff: str
+    stdoff: At
     rule: str
     format: str
     until: Until
@@ -306,7 +306,7 @@ class ZoneRule:
     def __post_init__(self):
         at = At(self.stdoff)
         assert(not at.timefmt)
-        self.stdoff = str(at)
+        self.stdoff = at
 
     def __str__(self):
         s = f'{self.stdoff} {self.rule} {self.format}'
@@ -433,6 +433,22 @@ class TzData:
         zone_count = len([x for x in self.zones if isinstance(x, Zone)])
         link_count = len(self.zones) - zone_count
         f.write(f'// Contains {zone_count} zones and {link_count} links.\n')
+
+        def get_delta(zone):
+            if isinstance(zone, Link) or zone.region == 'Etc':
+                return timedelta()
+            return aggregator(zr.stdoff.delta for zr in zone.rules if zr.applies_to(now))
+
+        aggregator = min
+        zone = aggregator(self.zones, key=get_delta)
+        offset = get_delta(zone)
+        f.write(f'// {zone.name} has minimum std offset of -{-offset}.\n')
+
+        aggregator = max
+        zone = aggregator(self.zones, key=get_delta)
+        offset = get_delta(zone)
+        f.write(f'// {zone.name} has maximum std offset of {offset}.\n')
+
         f.write('\n')
 
         f.write('namespace TZ {\n')
