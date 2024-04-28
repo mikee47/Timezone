@@ -160,6 +160,17 @@ class At:
     def delta(self):
         return timedelta(hours=self.hour, minutes=self.min, seconds=self.sec)
 
+    def adjust_utc(self, dt: datetime, stdoff: timedelta, dstoff: timedelta):
+        delta = self.delta
+        if self.timefmt in ['', 'w']:
+            return dt + delta - stdoff - dstoff
+        if self.timefmt == 's':
+            return dt + delta - stdoff
+        if self.timefmt in ['u', 'g', 'z']:
+            return dt + delta
+        raise ValueError(f'Invalid timefmt {self.timefmt}')
+
+
 @dataclass
 class Until:
     year: int = None
@@ -197,12 +208,6 @@ class Until:
             return True
         d = self.day.get_date(self.year, self.month)
         return dt.date() < d
-
-    def get_datetime(self, year: int) -> datetime:
-        if not self:
-            return None
-        d = self.day.get_date(year, self.month)
-        return datetime(d.year, d.month, d.day, tzinfo=timezone.utc) + at.delta
 
 
 @dataclass
@@ -291,9 +296,11 @@ class Rule:
             return True
         return self.from_ <= dt.year <= self.to
 
-    def get_datetime(self, year: int) -> datetime:
+    def get_datetime_utc(self, year: int, stdoff: timedelta, dstoff: timedelta) -> datetime:
+        """Obtain transition date/time in UTC"""
         d = self.on.get_date(year, self.in_)
-        return datetime(d.year, d.month, d.day, tzinfo=timezone.utc) + self.at.delta
+        dt = datetime(d.year, d.month, d.day, tzinfo=timezone.utc)
+        return self.at.adjust_utc(dt, stdoff, dstoff)
 
 
 @dataclass
@@ -490,8 +497,15 @@ class TzData:
 
                         rules = self.get_rules(zr.rule, now)
                         if rules:
+                            dstoff = timedelta()
                             for r in rules:
                                 f.write(f'{indent}   {r}\n')
+                                stdoff = zr.stdoff.delta
+                                dt = r.get_datetime_utc(now.year, stdoff, dstoff);
+                                f.write(f'{indent}     {(dt + stdoff + dstoff).ctime()} LOCAL\n')
+                                f.write(f'{indent}     {(dt + stdoff).ctime()} STD\n')
+                                f.write(f'{indent}     {dt.ctime()} UTC\n')
+                                dstoff = r.save.delta
                         elif zr.rule == '-':
                             pass
                         else:
