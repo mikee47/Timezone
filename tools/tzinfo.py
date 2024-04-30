@@ -203,11 +203,13 @@ class Until:
     def __str__(self):
         return f'{self.year}/{self.month}/{self.day} {str(self.at)}' if self else ''
 
-    def applies_to(self, dt: datetime) -> bool:
-        if dt is None or not self:
-            return True
-        d = self.day.get_date(self.year, self.month)
-        return dt.date() < d
+    def get_date(self) -> date:
+        if not self:
+            return date(9999, 12, 31)
+        return self.day.get_date(self.year, self.month)
+
+    def applies_to(self, d: date) -> bool:
+        return d is None or d <= self.get_date()
 
 
 @dataclass
@@ -291,10 +293,17 @@ class Rule:
     def __str__(self):
         return f'{self.from_} {self.to} - {self.in_} {self.on} {self.at} {self.save} {self.letters}'
 
-    def applies_to(self, dt: datetime) -> bool:
-        if dt is None:
+    def applies_to(self, year_from: int, year_to: int = None) -> bool:
+        if year_from is None:
             return True
-        return self.from_ <= dt.year <= self.to
+        if self.from_ <= year_from <= self.to:
+            return True
+        if year_to is None:
+            return False
+        if self.from_ <= year_to <= self.to:
+            return True
+        return self.from_ >= year_from and self.to <= year_to
+        
 
     def get_datetime_utc(self, year: int, stdoff: timedelta, dstoff: timedelta) -> datetime:
         """Obtain transition date/time in UTC"""
@@ -321,8 +330,8 @@ class ZoneRule:
             s += f' {self.until}'
         return s
 
-    def applies_to(self, dt: datetime) -> bool:
-        return self.until.applies_to(dt)
+    def applies_to(self, d: date) -> bool:
+        return self.until.applies_to(d)
 
 
 @dataclass
@@ -366,8 +375,8 @@ class Zone(NamedItem):
         self.rules.append(rule)
         return rule
 
-    def get_rules(self, dt: datetime) -> list[ZoneRule]:
-        return [zr for zr in self.rules if zr.applies_to(dt)]
+    def get_rules(self, d: date) -> list[ZoneRule]:
+        return [zr for zr in self.rules if zr.applies_to(d)]
 
 
 @dataclass
@@ -387,10 +396,6 @@ class TzData:
         rules = self.rules.setdefault(name, [])
         rules.append(rule)
         return rule
-
-    def get_rules(self, name: str, dt: datetime) -> list[Rule]:
-        rules = self.rules.get(name)
-        return [r for r in rules if r.applies_to(dt)] if rules else []
 
     def add_zone(self, fields: list[str]) -> Zone:
         name = fields[1]
@@ -440,7 +445,9 @@ class TzData:
         self.zones.sort()
 
     def write_file(self, f, define: bool):
-        now = datetime.now(timezone.utc)
+        d_from = date(2024, 1, 1)
+        d_to = date(2034, 1, 1)
+
         f.write('\n')
         for c in self.comments:
             f.write(f'// {c}\n')
@@ -451,7 +458,7 @@ class TzData:
         def get_delta(zone):
             if isinstance(zone, Link) or zone.region == 'Etc':
                 return timedelta()
-            return aggregator(zr.stdoff.delta for zr in zone.rules if zr.applies_to(now))
+            return aggregator(zr.stdoff.delta for zr in zone.rules if zr.applies_to(d_from))
 
         aggregator = min
         zone = aggregator(self.zones, key=get_delta)
@@ -492,20 +499,31 @@ class TzData:
 
                     f.write(f'{indent}   {TzString(zone.tzstr)}\n')
 
-                    for zr in zone.get_rules(now):
+                    DATEFMT = '%Y %a %b %d %H:%M'
+                    for zr in zone.get_rules(d_from):
                         f.write(f'{indent} {zr}\n')
 
-                        rules = self.get_rules(zr.rule, now)
+                        rules = self.rules.get(zr.rule)
                         if rules:
                             dstoff = timedelta()
                             for r in rules:
-                                f.write(f'{indent}   {r}\n')
-                                stdoff = zr.stdoff.delta
-                                dt = r.get_datetime_utc(now.year, stdoff, dstoff);
-                                f.write(f'{indent}     {(dt + stdoff + dstoff).ctime()} LOCAL\n')
-                                f.write(f'{indent}     {(dt + stdoff).ctime()} STD\n')
-                                f.write(f'{indent}     {dt.ctime()} UTC\n')
-                                dstoff = r.save.delta
+                                if r.applies_to(d_from.year, d_to.year):
+                                    f.write(f'{indent}   {r}\n')
+
+                                    stdoff = zr.stdoff.delta
+                                    for year in range(max(d_from.year, r.from_), min(d_to.year, r.to) + 1):
+                                        dt = r.get_datetime_utc(year, stdoff, dstoff)
+                                        f.write(f'{indent}     {(dt + stdoff + dstoff).strftime(DATEFMT)} {tztag}\n')
+                                        # f.write(f'{indent}     {(dt + stdoff).ctime()} STD\n')
+                                        # f.write(f'{indent}     {dt.ctime()} UTC\n')
+                                    dstoff = r.save.delta
+
+                                if '/' in zr.format:
+                                    tztag = zr.format.split('/')[1 if r.save.delta else 0]
+                                elif r.letters == '-':
+                                    tztag = zr.format.replace('%s', '')
+                                else:
+                                    tztag = zr.format.replace('%s', r.letters)
                         elif zr.rule == '-':
                             pass
                         else:
@@ -543,6 +561,7 @@ def create_file(filename: str):
 def main():
     data = TzData()
     data.load()
+
     with create_file('tzdata.h') as f:
         f.write('''
 #pragma once
