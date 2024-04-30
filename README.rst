@@ -8,6 +8,46 @@ See :sample:`SystemClock_NTP` for example usage.
 Port of https://github.com/JChristensen/Timezone for Sming.
 
 
+2024 Revision
+-------------
+
+Sming support for dates and times is via the :cpp:class:`DateTime` and :cpp:class:`SystemClockClass` classes.
+
+Applications may need support for local time for example when updating integrated displays.
+The system clock is maintained in UTC, but can provide local time provided the appropriate offset is
+set via :cpp:func:`SystemClockClass::setTimeZoneOffset`.
+
+.. note::
+   
+   Applications with web interfaces would normally deal with local time conversions in script.
+   Web browsers have access to full time zone information e.g. via local IANA database (see below).
+
+The clock itself can best be kept correct using NTP.
+However, keeping the timezone offset correct is another matter.
+
+The standard C library provides support for time conversions but using those from C++ code is clunky
+and error-prone.
+
+Also, `rules change <https://www.timeanddate.com/time/europe/eu-dst.html>`__.
+Not often, but nowadays users expect systems to take care of this stuff itself.
+But it can be complicated!
+The easiest solution is just to let the user change the time (offset) manually if needed - always a good idea.
+
+This library aims to improve the handling of timezones in the following ways:
+
+-  Supporting setting the local timezone using a local identifier, such as ``TZ::Europe::London``.
+-  Integrate with the standard C library calls to accommodate any existing code which may use them.
+-  Ensure local time is always correct when queried via :cpp:method:`SystemClockClass::now()`,
+   taking care of daylight savings changes for the selected timezone.
+-  Allowing more comprehensive timezone support using a compact timezone database.
+   This allows applications to provide menus for selecting timezones, etc.
+   Note that this could also be accomplished by retrieving the database information from remote servers
+   since it's generally only required during configuration or setup.
+-  Support automatic updates to tiemzone rules. IANA publishes these in advance of the changes
+   so user intervention should not be required.
+
+
+
 IANA database
 -------------
 
@@ -75,14 +115,15 @@ Functions like ``mktime`` and ``localtime`` will then produce the expected resul
    These refer to binary files found in release builds of the IANA database
    and produce accurate results for historical and future dates.
 
-Note that I avoid these functions for two reasons:
+Whilst it's fine for library code to use these in their implementations, it's something applications
+should avoid:
 
-   They're not intuitive
-   They're error prone
-   They can introduce unexpected code/data bloat
-   I'm using C++ dammit.
+   - They're not intuitive
+   - They're error prone
+   - They can introduce unexpected code/data bloat
+   - By themselves, they don't take account of rule changes (you'd need multiple strings)
+   - I'm using C++ dammit.
 
-It's fine for library code to use these in their implementations, of course.
 
 IANA says this:
 
@@ -127,6 +168,33 @@ IANA has this to say:
    The tz database contains English abbreviations for many timestamps; unfortunately some of these
    abbreviations were merely the database maintainers' inventions, and these have been removed when
    possible.
+
+
+Useful commands
+---------------
+
+List transitions within a range of years::
+
+   zdump -i -c 2024,2040 Europe/London
+   zdump -V -c 2024,2040 Europe/London
+
+Generate binary rule data in compact form, up to year 2040::
+
+   zic -r @$(date +%s -d 2024-01-01)/@$(date +%s -d 2040-01-01) -b slim /usr/share/zoneinfo/tzdata.zi -d tmp
+
+Output is in 'tmp'.
+This is still more bloaty than we'd like.
+For example, ``Europe/London`` has only one rule yet the tzdata is 740 bytes.
+The corresponding POSIX rule is 'GMT0BST,M3.5.0/1,M10.5.0'.
+
+
+Testing
+-------
+
+As this is all jolly complicated testing is important.
+We certainly want to make sure that transitions are correct and correspond with those reported by
+development system libraries.
+
 
 
 References
