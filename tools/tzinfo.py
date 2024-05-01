@@ -573,9 +573,9 @@ class TzData:
   DEFINE_FSTR_LOCAL(TZNAME_{tag}, "{zone.zone_name}")
   DEFINE_FSTR_LOCAL(TZSTR_{tag}, "{zone.tzstr}")
   const TzInfo {tag} PROGMEM {{
-      .region = {region_tag},
-      .name = TZNAME_{tag},
-      .rules = TZSTR_{tag},
+      {region_tag},
+      TZNAME_{tag},
+      TZSTR_{tag},
   }};
 ''')
                 else:
@@ -591,14 +591,12 @@ class TzData:
             f.write('''
 #pragma once
 
-#include <Timezone.h>
+#include <WString.h>
 
 struct TzInfo {
     const FSTR::String& region;
     const FSTR::String& name;
     const FSTR::String& rules;
-    TimeChangeRule dst;
-    TimeChangeRule std;
 
     String fullName() const
     {
@@ -675,18 +673,19 @@ class Continent:
 class ZoneTable:
     continents: list[Continent] = None
     timezones: list[TimeZone] = None
+    countries: list[Country] = None
 
     def load(self, tzdata):
         # COUNTRIES
-        countries_by_code = {}
+        countries = []
         for line in open(COUNTRYTAB_PATH):
             if line.startswith('#'):
                 continue
             code, _, name = line.strip().partition('\t')
-            countries_by_code[code] = Country(code, name)
+            countries.append(Country(code, name))
         def country_key(c):
             return c.sort_key
-        countries_by_name = dict((c.name, c) for c in sorted(countries_by_code.values(), key=country_key))
+        self.countries = sorted(countries, key=country_key)
 
         # ZONES - naming as for `tzselect``
         self.timezones = []
@@ -712,7 +711,7 @@ class ZoneTable:
                 if tz.zone.name.startswith(continent_name):
                     codes |= set(tz.country_codes)
             # 2) Country
-            countries = [c for c in countries_by_name.values() if c.code in codes]
+            countries = [c for c in self.countries if c.code in codes]
             continent = Continent(continent_name, countries)
             self.continents.append(continent)
             for country in countries:
@@ -734,38 +733,46 @@ class ZoneTable:
             for tz in self.timezones:
                 tz_tag = 'tz_' + make_tag(tz.zone.name)
                 lat, lng = tz.latlng
+                comments = f'&str_{make_tag(tz.comments)}' if tz.comments else 'nullptr'
                 f.write(f'''
-const TimeZone {tz_tag} PROGMEM {{
+const TimeZone {tz_tag} PROGMEM {{ {{}},
     {lat}, {lng},
     &TZ::{tz.zone.namespace}::{tz.zone.tag},
-''')
-                if tz.comments:
-                    f.write(f'''\
-    &STR_{make_tag(tz.comments)},
+    {comments},
 ''')
                 f.write('};\n')
 
-        for continent in self.continents:
-            continent_tag = make_tag(continent.name)
-            for country in continent.countries:
-                country_tag = make_tag(country.name)
-                if define:
-                    f.write(f'''
-const Country {continent_tag}_{country_tag} PROGMEM {{
+        for country in self.countries:
+            if country.timezones is None:
+                print(f'{country.name} has no timezones')
+                continue
+            country_tag = make_tag(country.name)
+            if define:
+                f.write(f'DEFINE_FSTR_VECTOR_LOCAL(timezones_{country_tag}, TimeZone')
+                for tz in country.timezones:
+                    tz_tag = 'tz_' + make_tag(tz.zone.name)
+                    f.write(f',\n  &{tz_tag}')
+                f.write(f''')
+
+const Country cnt_{country_tag} PROGMEM {{ {{}},
     "{country.code}",
     &str_{country_tag},
+    &timezones_{country_tag},
 }};
 ''')
-                else:
-                    f.write(f'extern const Country {continent_tag}_{country_tag};\n')
+            else:
+                f.write(f'extern const Country cnt_{country_tag};\n')
+
+        for continent in self.continents:
+            continent_tag = make_tag(continent.name)
             if define:
                 f.write(f'DEFINE_FSTR_VECTOR_LOCAL(countries_{continent_tag}, Country')
                 for country in continent.countries:
                     country_tag = make_tag(country.name)
-                    f.write(f',\n  &{continent_tag}_{country_tag}')
+                    f.write(f',\n  &cnt_{country_tag}')
                 f.write(f''')
 
-const Continent {continent_tag} PROGMEM {{
+const Continent {continent_tag} PROGMEM {{ {{}},
     &str_{continent_tag},
     &countries_{continent_tag},
 }};
@@ -773,6 +780,16 @@ const Continent {continent_tag} PROGMEM {{
             else:
                 f.write(f'extern const Continent {continent_tag};\n')
             f.write('\n')
+
+        if define:
+            f.write('DEFINE_FSTR_VECTOR(continents, Continent')
+            for continent in self.continents:
+                continent_tag = make_tag(continent.name)
+                f.write(f',\n  &{continent_tag}')
+            f.write(')\n')
+        else:
+            f.write('DECLARE_FSTR_VECTOR(continents, Continent)\n')
+
 
     def write_source(self, filename: str):
         with create_file(f'{filename}.h') as f:
@@ -785,7 +802,20 @@ const Continent {continent_tag} PROGMEM {{
 namespace TZ::Index
 {
 
-struct TimeZone {
+template <class T> struct Object
+{
+    static constexpr const T& empty()
+    {
+        return empty_;
+    }
+
+    static const T empty_;
+};
+
+template <class T> const T Object<T>::empty_{};
+
+struct TimeZone: public Object<TimeZone>
+{
     // const FlashString* countryCodes;
     float lat;
     float lng;
@@ -808,20 +838,15 @@ struct TimeZone {
     }
 };
 
-struct Country {
+struct Country: public Object<Country>
+{
     char code[4];
     const FlashString* name;
     const FSTR::Vector<TimeZone>* timezones;
-
-    static constexpr const Country& empty()
-    {
-        return empty_;
-    }
-
-    static const Country empty_;
 };
 
-struct Continent {
+struct Continent: public Object<Continent>
+{
     const FlashString* name;
     const FSTR::Vector<Country>* countries;
 
@@ -830,7 +855,7 @@ struct Continent {
 
 ''')
             self.write_file(f, False)
-            f.write('} // namespace TZ::Index')
+            f.write('} // namespace TZ::Index\n')
 
         with create_file(f'{filename}.cpp') as f:
             f.write(f'#include "{filename}.h"\n')
@@ -838,8 +863,6 @@ struct Continent {
 
 namespace TZ::Index
 {
-const Country Country::empty_{};
-
 String Continent::caption() const
 {
     String s(*name);
@@ -852,7 +875,7 @@ String Continent::caption() const
 }
 ''')
             self.write_file(f, True)
-            f.write('} // namespace TZ::Index')
+            f.write('} // namespace TZ::Index\n')
 
     def print(self):
         for icon, continent in enumerate(self.continents):
