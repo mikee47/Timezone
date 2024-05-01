@@ -74,6 +74,21 @@ def get_day_number(name: str) -> int:
     name = match_name(DAY_NAMES, name)
     return DAY_NAMES.index(name)
 
+def iso6709_string_to_float(s: str) -> float:
+    def decode(sign, deg, min, sec) -> float:
+        value = round(int(deg) + int(min) / 60.0 + int(sec) / 3600.0, 3)
+        return -value if sign == '-' else value
+
+    if len(s) == 11:
+        lat = decode(s[0], s[1:3], s[3:5], 0)
+        lng = decode(s[5], s[6:9], s[9:11], 0)
+    elif len(s) == 15:
+        lat = decode(s[0], s[1:3], s[3:5], s[5:7])
+        lng = decode(s[7], s[8:11], s[11:13], s[13:15])
+    else:
+        raise ValueError('Invalid ISO6709 string "{s}"')
+    return lat, lng
+
 
 def remove_accents(s: str) -> str:
     return ''.join(c for c in unicodedata.normalize('NFD', s)
@@ -620,6 +635,10 @@ class TimeZone:
     def __lt__(self, other):
         return self.caption.lower() < other.caption.lower()
 
+    @property
+    def latlng(self):
+        return iso6709_string_to_float(self.coordinates)
+
 
 @dataclass
 class Country:
@@ -714,8 +733,10 @@ class ZoneTable:
 
             for tz in self.timezones:
                 tz_tag = 'tz_' + make_tag(tz.zone.name).lower()
+                lat, lng = tz.latlng
                 f.write(f'''
 const TimeZone {tz_tag} PROGMEM {{
+    {lat}, {lng},
     &TZ::{tz.zone.namespace}::{tz.zone.tag},
 ''')
                 if tz.comments:
@@ -766,7 +787,8 @@ namespace TZ::Index
 
 struct TimeZone {
     // const FlashString* countryCodes;
-    // coordinates;
+    float lat;
+    float lng;
     const TzInfo* _info;
     const FlashString* _comments;
 
