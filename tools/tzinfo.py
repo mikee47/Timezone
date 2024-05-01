@@ -99,7 +99,7 @@ def make_tag(s: str) -> str:
         def __getitem__(self, c: str):
             return '_' if chr(c) in '/ ' else c if chr(c).isalnum() else None
     s = remove_accents(s).translate(Table())
-    return s.replace('__', '_')
+    return s.replace('__', '_').lower()
 
 def make_namespace(s: str) -> str:
     return s.replace('/', '::')
@@ -728,11 +728,11 @@ class ZoneTable:
                     unique_strings.add(country.name)
                     unique_strings |= set(tz.comments for tz in country.timezones)
             for s in sorted(list(unique_strings)):
-                f.write(f'DEFINE_FSTR_LOCAL(STR_{make_tag(s)}, "{s}")\n')
+                f.write(f'DEFINE_FSTR_LOCAL(str_{make_tag(s)}, "{s}")\n')
             f.write('\n')
 
             for tz in self.timezones:
-                tz_tag = 'tz_' + make_tag(tz.zone.name).lower()
+                tz_tag = 'tz_' + make_tag(tz.zone.name)
                 lat, lng = tz.latlng
                 f.write(f'''
 const TimeZone {tz_tag} PROGMEM {{
@@ -753,21 +753,21 @@ const TimeZone {tz_tag} PROGMEM {{
                     f.write(f'''
 const Country {continent_tag}_{country_tag} PROGMEM {{
     "{country.code}",
-    &STR_{country_tag},
+    &str_{country_tag},
 }};
 ''')
                 else:
                     f.write(f'extern const Country {continent_tag}_{country_tag};\n')
             if define:
-                f.write(f'DEFINE_FSTR_VECTOR_LOCAL(COUNTRIES_{continent_tag}, Country')
+                f.write(f'DEFINE_FSTR_VECTOR_LOCAL(countries_{continent_tag}, Country')
                 for country in continent.countries:
                     country_tag = make_tag(country.name)
                     f.write(f',\n  &{continent_tag}_{country_tag}')
                 f.write(f''')
 
 const Continent {continent_tag} PROGMEM {{
-    &STR_{continent_tag},
-    &COUNTRIES_{continent_tag},
+    &str_{continent_tag},
+    &countries_{continent_tag},
 }};
 ''')
             else:
