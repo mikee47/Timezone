@@ -8,6 +8,7 @@ import os
 import sys
 import json
 import re
+import unicodedata
 from datetime import datetime, date, timezone, timedelta
 import calendar
 from dataclasses import dataclass, field
@@ -17,6 +18,10 @@ ZONEINFO_PATH = '/usr/share/zoneinfo'
 
 # Format described here https://data.iana.org/time-zones/data/zic.8.txt
 TZDATA_PATH = ZONEINFO_PATH + '/tzdata.zi'
+# Country data
+COUNTRYTAB_PATH = ZONEINFO_PATH + '/iso3166.tab'
+# Zone descriptions
+ZONETAB_PATH = ZONEINFO_PATH + '/zone1970.tab'
 
 MONTH_NAMES = [
     'January',
@@ -546,6 +551,7 @@ class TzData:
         f.write('} // namespace TZ\n')
 
 
+
 def create_file(filename: str):
     f = open(filename, 'w')
     f.write(f'''\
@@ -556,11 +562,112 @@ def create_file(filename: str):
 // clang-format off
 ''')
     return f
-    
+
+
+@dataclass
+class TimeZone:
+    country_codes: list[str]
+    coordinates: str
+    zone: Zone
+    comments: str
+
+    @property
+    def caption(self):
+        return self.comments or self.zone.zone_name
+
+    def __lt__(self, other):
+        return self.caption.lower() < other.caption.lower()
+
+def remove_accents(s: str) -> str:
+    return ''.join(c for c in unicodedata.normalize('NFD', s)
+                                if unicodedata.category(c) != 'Mn')
+
+@dataclass
+class Country:
+    code: str
+    name: str
+    timezones: list[TimeZone] = None
+
+    @property
+    def sort_key(self):
+        return remove_accents(self.name).lower()
+
+
+@dataclass
+class Continent:
+    name: str
+    countries: list[Country]
+
+    @property
+    def caption(self):
+        """Return a slightly more user-friendly continent string, as given by `tzselect`"""
+        name = self.name
+        if name == 'America':
+            return f'{name}s'
+        if name in ['Arctic', 'Atlantic', 'Indian', 'Pacific']:
+            return f'{name} Ocean'
+        return name
+
 
 def main():
-    data = TzData()
-    data.load()
+    tzdata = TzData()
+    tzdata.load()
+
+    # COUNTRIES
+    countries_by_code = {}
+    for line in open(COUNTRYTAB_PATH):
+        if line.startswith('#'):
+            continue
+        code, _, name = line.strip().partition('\t')
+        countries_by_code[code] = Country(code, name)
+    def country_key(c):
+        return c.sort_key
+    countries_by_name = dict((c.name, c) for c in sorted(countries_by_code.values(), key=country_key))
+
+    # ZONES - naming as for `tzselect``
+    timezones = []
+    unique_regions = set()
+    for line in open(ZONETAB_PATH):
+        if line.startswith('#'):
+            continue
+        fields = line.strip().split('\t')
+        country_codes = fields.pop(0).split(',')
+        coordinates = fields.pop(0)
+        tz = fields.pop(0)
+        comments = fields.pop(0) if fields else ''
+        zone = next(z for z in tzdata.zones if z.name == tz)
+        timezones.append(TimeZone(country_codes, coordinates, zone, comments))
+
+    # 1) Continent or Ocean
+    continents = []
+    continent_names = sorted(list(set(tz.zone.region.partition('/')[0] for tz in timezones)), key=str.lower)
+    for continent_name in continent_names:
+        codes = set()
+        for tz in timezones:
+            if tz.zone.name.startswith(continent_name):
+                codes |= set(tz.country_codes)
+        # 2) Country
+        countries = [c for c in countries_by_name.values() if c.code in codes]
+        continent = Continent(continent_name, countries)
+        continents.append(continent)
+        for i, country in enumerate(countries):
+            # 3) Zone
+            country.timezones = sorted([tz for tz in timezones if country.code in tz.country_codes])
+
+    for icon, continent in enumerate(continents):
+        print(f'{icon+1}) {continent.caption}')
+        for icnt, country in enumerate(countries):
+            print(f'  {icon+1}.{icnt+1}) {country.name}')
+            for it, tz in enumerate(country.timezones):
+                desc = f'{icon+1}.{icnt+1}.{it+1}) {tz.caption}'
+                if len(desc) > 40:
+                    print(f'      {desc}')
+                    desc = ''
+                print(f'      {desc:40} {tz.zone.name}')
+
+
+    return
+
 
     with create_file('tzdata.h') as f:
         f.write('''
@@ -585,13 +692,14 @@ struct TzInfo {
     }
 
 };
+
 ''')
-        data.write_file(f, False)
+        tzdata.write_file(f, False)
     with create_file('tzdata.cpp') as f:
         f.write('''
 #include "tzdata.h"
 ''')
-        data.write_file(f, True)
+        tzdata.write_file(f, True)
 
 
 if __name__ == '__main__':
