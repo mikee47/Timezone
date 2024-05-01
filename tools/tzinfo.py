@@ -655,6 +655,7 @@ class Continent:
 @dataclass
 class ZoneTable:
     continents: list[Continent] = None
+    timezones: list[TimeZone] = None
 
     def load(self, tzdata):
         # COUNTRIES
@@ -669,7 +670,7 @@ class ZoneTable:
         countries_by_name = dict((c.name, c) for c in sorted(countries_by_code.values(), key=country_key))
 
         # ZONES - naming as for `tzselect``
-        timezones = []
+        self.timezones = []
         unique_regions = set()
         for line in open(ZONETAB_PATH):
             if line.startswith('#'):
@@ -680,14 +681,15 @@ class ZoneTable:
             tz = fields.pop(0)
             comments = fields.pop(0) if fields else ''
             zone = next(z for z in tzdata.zones if z.name == tz)
-            timezones.append(TimeZone(country_codes, coordinates, zone, comments))
+            self.timezones.append(TimeZone(country_codes, coordinates, zone, comments))
 
         # 1) Continent or Ocean
         self.continents = []
-        continent_names = sorted(list(set(tz.zone.region.partition('/')[0] for tz in timezones)), key=str.lower)
+        continent_names = sorted(list(set(tz.zone.region.partition('/')[0]
+                                        for tz in self.timezones)), key=str.lower)
         for continent_name in continent_names:
             codes = set()
-            for tz in timezones:
+            for tz in self.timezones:
                 if tz.zone.name.startswith(continent_name):
                     codes |= set(tz.country_codes)
             # 2) Country
@@ -696,17 +698,31 @@ class ZoneTable:
             self.continents.append(continent)
             for country in countries:
                 # 3) Zone
-                country.timezones = sorted([tz for tz in timezones if country.code in tz.country_codes])
+                country.timezones = sorted([tz for tz in self.timezones if country.code in tz.country_codes])
 
     def write_file(self, f, define: bool):
         if define:
             unique_strings = set()
             for continent in self.continents:
                 unique_strings.add(continent.name)
-                unique_strings |= set(c.name for c in continent.countries)
+                for country in continent.countries:
+                    unique_strings.add(country.name)
+                    unique_strings |= set(tz.comments for tz in country.timezones)
             for s in sorted(list(unique_strings)):
                 f.write(f'DEFINE_FSTR_LOCAL(STR_{make_tag(s)}, "{s}")\n')
             f.write('\n')
+
+            for tz in self.timezones:
+                tz_tag = 'tz_' + make_tag(tz.zone.name).lower()
+                f.write(f'''
+const TimeZone {tz_tag} PROGMEM {{
+    &TZ::{tz.zone.namespace}::{tz.zone.tag},
+''')
+                if tz.comments:
+                    f.write(f'''\
+    &STR_{make_tag(tz.comments)},
+''')
+                f.write('};\n')
 
         for continent in self.continents:
             continent_tag = make_tag(continent.name)
