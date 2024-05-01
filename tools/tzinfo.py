@@ -75,11 +75,31 @@ def get_day_number(name: str) -> int:
     return DAY_NAMES.index(name)
 
 
-def make_tag(path: str) -> str:
-    return path.replace('/', '_')
+def remove_accents(s: str) -> str:
+    return ''.join(c for c in unicodedata.normalize('NFD', s)
+                                if unicodedata.category(c) != 'Mn')
 
-def make_namespace(path: str) -> str:
-    return path.replace('/', '::')
+def make_tag(s: str) -> str:
+    class Table:
+        def __getitem__(self, c: str):
+            return '_' if chr(c) in '/ ' else c if chr(c).isalnum() else None
+    s = remove_accents(s).translate(Table())
+    return s.replace('__', '_')
+
+def make_namespace(s: str) -> str:
+    return s.replace('/', '::')
+
+
+def create_file(filename: str):
+    f = open(filename, 'w')
+    f.write(f'''\
+/*
+ * This file is auto-generated.
+ */
+
+// clang-format off
+''')
+    return f
 
 
 
@@ -363,7 +383,8 @@ class NamedItem:
 
     @property
     def tag(self) -> str:
-        return self.zone_name.replace('-', '_N').replace('+', '_P')
+        table = str.maketrans({'-': '_N', '+': '_P'})
+        return self.zone_name.translate(table)
 
 
 @dataclass
@@ -550,18 +571,39 @@ class TzData:
             f.write('\n')
         f.write('} // namespace TZ\n')
 
+    def write_source(self, filename: str):
+        with create_file(f'{filename}.h') as f:
+            f.write('''
+#pragma once
 
+#include <Timezone.h>
 
-def create_file(filename: str):
-    f = open(filename, 'w')
-    f.write(f'''\
-/*
- * This file is auto-generated.
- */
+struct TzInfo {
+    const FSTR::String& region;
+    const FSTR::String& name;
+    const FSTR::String& rules;
+    TimeChangeRule dst;
+    TimeChangeRule std;
 
-// clang-format off
+    String fullName() const
+    {
+        String s;
+        if(region.length() != 0) {
+            s += region;
+            s += '/';
+        }
+        s += name;
+        return s;
+    }
+
+};
+
 ''')
-    return f
+            self.write_file(f, False)
+
+        with create_file(f'{filename}.cpp') as f:
+            f.write(f'#include "{filename}.h"\n')
+            self.write_file(f, True)
 
 
 @dataclass
@@ -578,9 +620,6 @@ class TimeZone:
     def __lt__(self, other):
         return self.caption.lower() < other.caption.lower()
 
-def remove_accents(s: str) -> str:
-    return ''.join(c for c in unicodedata.normalize('NFD', s)
-                                if unicodedata.category(c) != 'Mn')
 
 @dataclass
 class Country:
@@ -609,97 +648,197 @@ class Continent:
         return name
 
 
-def main():
-    tzdata = TzData()
-    tzdata.load()
-
-    # COUNTRIES
-    countries_by_code = {}
-    for line in open(COUNTRYTAB_PATH):
-        if line.startswith('#'):
-            continue
-        code, _, name = line.strip().partition('\t')
-        countries_by_code[code] = Country(code, name)
-    def country_key(c):
-        return c.sort_key
-    countries_by_name = dict((c.name, c) for c in sorted(countries_by_code.values(), key=country_key))
-
-    # ZONES - naming as for `tzselect``
-    timezones = []
-    unique_regions = set()
-    for line in open(ZONETAB_PATH):
-        if line.startswith('#'):
-            continue
-        fields = line.strip().split('\t')
-        country_codes = fields.pop(0).split(',')
-        coordinates = fields.pop(0)
-        tz = fields.pop(0)
-        comments = fields.pop(0) if fields else ''
-        zone = next(z for z in tzdata.zones if z.name == tz)
-        timezones.append(TimeZone(country_codes, coordinates, zone, comments))
-
-    # 1) Continent or Ocean
-    continents = []
-    continent_names = sorted(list(set(tz.zone.region.partition('/')[0] for tz in timezones)), key=str.lower)
-    for continent_name in continent_names:
-        codes = set()
-        for tz in timezones:
-            if tz.zone.name.startswith(continent_name):
-                codes |= set(tz.country_codes)
-        # 2) Country
-        countries = [c for c in countries_by_name.values() if c.code in codes]
-        continent = Continent(continent_name, countries)
-        continents.append(continent)
-        for i, country in enumerate(countries):
-            # 3) Zone
-            country.timezones = sorted([tz for tz in timezones if country.code in tz.country_codes])
-
-    for icon, continent in enumerate(continents):
-        print(f'{icon+1}) {continent.caption}')
-        for icnt, country in enumerate(countries):
-            print(f'  {icon+1}.{icnt+1}) {country.name}')
-            for it, tz in enumerate(country.timezones):
-                desc = f'{icon+1}.{icnt+1}.{it+1}) {tz.caption}'
-                if len(desc) > 40:
-                    print(f'      {desc}')
-                    desc = ''
-                print(f'      {desc:40} {tz.zone.name}')
+    def __eq__(self, other):
+        return self.name == (other if isinstance(other, str) else other.name)
 
 
-    return
+@dataclass
+class ZoneTable:
+    continents: list[Continent] = None
 
+    def load(self, tzdata):
+        # COUNTRIES
+        countries_by_code = {}
+        for line in open(COUNTRYTAB_PATH):
+            if line.startswith('#'):
+                continue
+            code, _, name = line.strip().partition('\t')
+            countries_by_code[code] = Country(code, name)
+        def country_key(c):
+            return c.sort_key
+        countries_by_name = dict((c.name, c) for c in sorted(countries_by_code.values(), key=country_key))
 
-    with create_file('tzdata.h') as f:
-        f.write('''
+        # ZONES - naming as for `tzselect``
+        timezones = []
+        unique_regions = set()
+        for line in open(ZONETAB_PATH):
+            if line.startswith('#'):
+                continue
+            fields = line.strip().split('\t')
+            country_codes = fields.pop(0).split(',')
+            coordinates = fields.pop(0)
+            tz = fields.pop(0)
+            comments = fields.pop(0) if fields else ''
+            zone = next(z for z in tzdata.zones if z.name == tz)
+            timezones.append(TimeZone(country_codes, coordinates, zone, comments))
+
+        # 1) Continent or Ocean
+        self.continents = []
+        continent_names = sorted(list(set(tz.zone.region.partition('/')[0] for tz in timezones)), key=str.lower)
+        for continent_name in continent_names:
+            codes = set()
+            for tz in timezones:
+                if tz.zone.name.startswith(continent_name):
+                    codes |= set(tz.country_codes)
+            # 2) Country
+            countries = [c for c in countries_by_name.values() if c.code in codes]
+            continent = Continent(continent_name, countries)
+            self.continents.append(continent)
+            for country in countries:
+                # 3) Zone
+                country.timezones = sorted([tz for tz in timezones if country.code in tz.country_codes])
+
+    def write_file(self, f, define: bool):
+        if define:
+            unique_strings = set()
+            for continent in self.continents:
+                unique_strings.add(continent.name)
+                unique_strings |= set(c.name for c in continent.countries)
+            for s in sorted(list(unique_strings)):
+                f.write(f'DEFINE_FSTR_LOCAL(STR_{make_tag(s)}, "{s}")\n')
+            f.write('\n')
+
+        for continent in self.continents:
+            continent_tag = make_tag(continent.name)
+            for country in continent.countries:
+                country_tag = make_tag(country.name)
+                if define:
+                    f.write(f'''
+const Country {continent_tag}_{country_tag} PROGMEM {{
+    "{country.code}",
+    &STR_{country_tag},
+}};
+''')
+                else:
+                    f.write(f'extern const Country {continent_tag}_{country_tag};\n')
+            if define:
+                f.write(f'DEFINE_FSTR_VECTOR_LOCAL(COUNTRIES_{continent_tag}, Country')
+                for country in continent.countries:
+                    country_tag = make_tag(country.name)
+                    f.write(f',\n  &{continent_tag}_{country_tag}')
+                f.write(f''')
+
+const Continent {continent_tag} PROGMEM {{
+    &STR_{continent_tag},
+    &COUNTRIES_{continent_tag},
+}};
+''')
+            else:
+                f.write(f'extern const Continent {continent_tag};\n')
+            f.write('\n')
+
+    def write_source(self, filename: str):
+        with create_file(f'{filename}.h') as f:
+            f.write('''
 #pragma once
 
-#include <WString.h>
+#include "tzdata.h"
+#include <FlashString/Vector.hpp>
 
-struct TzInfo {
-    const FSTR::String& region;
-    const FSTR::String& name;
-    const FSTR::String& rules;
+namespace TZ::Index
+{
 
-    String fullName() const
+struct TimeZone {
+    // const FlashString* countryCodes;
+    // coordinates;
+    const TzInfo* _info;
+    const FlashString* _comments;
+
+    const TzInfo& info() const
     {
-        String s;
-        if(region.length() != 0) {
-            s += region;
-            s += '/';
-        }
-        s += name;
-        return s;
+        return *_info;
     }
 
+    String comments() const
+    {
+        return _comments ? String(*_comments) : String::empty;
+    }
+
+    String caption() const
+    {
+        return _comments ? *_comments : _info->name;
+    }
+};
+
+struct Country {
+    char code[4];
+    const FlashString* name;
+    const FSTR::Vector<TimeZone>* timezones;
+
+    static constexpr const Country& empty()
+    {
+        return empty_;
+    }
+
+    static const Country empty_;
+};
+
+struct Continent {
+    const FlashString* name;
+    const FSTR::Vector<Country>* countries;
+
+    String caption() const;
 };
 
 ''')
-        tzdata.write_file(f, False)
-    with create_file('tzdata.cpp') as f:
-        f.write('''
-#include "tzdata.h"
+            self.write_file(f, False)
+            f.write('} // namespace TZ::Index')
+
+        with create_file(f'{filename}.cpp') as f:
+            f.write(f'#include "{filename}.h"\n')
+            f.write('''
+
+namespace TZ::Index
+{
+const Country Country::empty_{};
+
+String Continent::caption() const
+{
+    String s(*name);
+    if(s == _F("America")) {
+        s += 's';
+    } else if(strchr("AIP", s[0]) && strchr("rtna", s[1])) {
+        s += _F(" Ocean");
+    }
+    return s;
+}
 ''')
-        tzdata.write_file(f, True)
+            self.write_file(f, True)
+            f.write('} // namespace TZ::Index')
+
+    def print(self):
+        for icon, continent in enumerate(self.continents):
+            print(f'{icon+1}) {continent.caption}')
+            for icnt, country in enumerate(continent.countries):
+                print(f'  {icon+1}.{icnt+1}) {country.name}')
+                for it, tz in enumerate(country.timezones):
+                    desc = f'{icon+1}.{icnt+1}.{it+1}) {tz.caption}'
+                    if len(desc) > 40:
+                        print(f'      {desc}')
+                        desc = ''
+                    print(f'      {desc:40} {tz.zone.name}')
+
+
+
+
+def main():
+    tzdata = TzData()
+    tzdata.load()
+    tzdata.write_source('tzdata')
+
+    zonetab = ZoneTable()
+    zonetab.load(tzdata)
+    zonetab.write_source('tzindex')
 
 
 if __name__ == '__main__':
