@@ -1,3 +1,8 @@
-COMPONENT_INCDIRS := src/include
-COMPONENT_SRCDIRS := src
-COMPONENT_DOXYGEN_INPUT := src/include
+COMPONENT_INCDIRS := \
+	src/include \
+	src/Arch/$(SMING_ARCH)
+COMPONENT_SRCDIRS := \
+	src \
+	src/Arch/$(SMING_ARCH)
+COMPONENT_DOXYGEN_INPUT := \
+	src/include

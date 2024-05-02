@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include "tzsys.h"
 #include <DateTime.h>
 
 // convenient constants for TimeChangeRules
