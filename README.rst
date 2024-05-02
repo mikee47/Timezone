@@ -47,6 +47,34 @@ This library aims to improve the handling of timezones in the following ways:
    so user intervention should not be required.
 
 
+Storage and updates
+-------------------
+
+Hard-coded TZ data is pretty straightforward, useful for simple systems deployed to limited areas.
+
+The full database is best kept on a filing system as it's infrequently accessed.
+
+The core data can all be stored in FWFS: readonly and compact.
+Any changes can be stored in a volatile filesystem, directly or as a 'package' in an FWFS image.
+
+There does not appear to be any standard way for propagating these changes.
+GNU/Linux, Android, Windows, etc. all have their own mechanisms.
+The root data source for these is the IANA database.
+
+.. note::
+
+   The current timezone database is always available via the IANA, but only in source form.
+   The most compact source for this is 'tzdata.zi' but requires parsing.
+
+   Compiled versions are more suitable. Here are some sources:
+
+   https://github.com/python/tzdata/tree/master/src/tzdata/zoneinfo
+   https://github.com/python/tzdata/raw/master/src/tzdata/zoneinfo/Europe/London
+
+After selecting the timezone(s) of interest, the appropriate data can be fetched and used to determine
+the appropriate timezone offsets and when the next changes occur.
+When that change happens, the source can be re-queried.
+
 
 IANA database
 -------------
@@ -68,7 +96,7 @@ But here's a few tidbits you might find useful.
 
 
 Data format
------------
+~~~~~~~~~~~
 
 The primary source files in the IANA database are:
 
