@@ -245,7 +245,8 @@ class PosixExpr:
         self.time = At(g[3])
 
     def __str__(self):
-        return f'{self.month}.{self.week}.{self.day}/{self.time}'
+        weekstr = "last" if self.week == 5 else f'week{self.week}'
+        return f'{MONTH_NAMES[self.month-1]}.{weekstr}.{DAY_NAMES[self.day]}/{self.time}'
 
 
 @dataclass
