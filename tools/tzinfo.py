@@ -24,28 +24,28 @@ COUNTRYTAB_PATH = ZONEINFO_PATH + '/iso3166.tab'
 ZONETAB_PATH = ZONEINFO_PATH + '/zone1970.tab'
 
 MONTH_NAMES = [
-    'January',
-    'February',
-    'March',
-    'April',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
     'May',
-    'June',
-    'July',
-    'August',
-    'September',
-    'October',
-    'November',
-    'December',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
 ]
 
 DAY_NAMES = [
-    'Sunday',
-    'Monday',
-    'Tuesday',
-    'Wednesday',
-    'Thursday',
-    'Friday',
-    'Saturday',
+    'Sun',
+    'Mon',
+    'Tue',
+    'Wed',
+    'Thu',
+    'Fri',
+    'Sat',
 ]
 
 def match_name(values: list[str], name: str) -> str | None:
@@ -224,7 +224,7 @@ class Until:
             self.year = int(fields.pop(0))
         if fields:
             # MONTH (Rule IN)
-            self.month = match_month_name(fields.pop(0))[:3]
+            self.month = match_month_name(fields.pop(0))
         if fields:
             # DAY (Rule ON)
             self.day = On(fields.pop(0))
@@ -333,7 +333,7 @@ class Rule:
         # Unused
         _ = fields.pop(0)
 
-        self.in_ = match_month_name(fields.pop(0))[:3]
+        self.in_ = match_month_name(fields.pop(0))
         self.on = On(fields.pop(0))
         self.at = At(fields.pop(0))
         self.save = TimeOffset(fields.pop(0))
