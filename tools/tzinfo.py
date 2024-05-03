@@ -9,7 +9,7 @@ import sys
 import json
 import re
 import unicodedata
-from datetime import datetime, date, timezone, timedelta
+from datetime import datetime, date, timedelta
 import calendar
 from dataclasses import dataclass, field
 
@@ -165,6 +165,7 @@ class At:
         fields = s.split(':')
         if fields:
             self.hour = int(fields.pop(0))
+            assert(self.hour >= 0)
         if fields:
             self.min = int(fields.pop(0))
         if fields:
@@ -186,6 +187,37 @@ class At:
         if self.timefmt in ['u', 'g', 'z']:
             return dt + delta
         raise ValueError(f'Invalid timefmt {self.timefmt}')
+
+
+@dataclass
+class TimeOffset:
+    seconds: int = 0
+    is_dst: bool = False
+
+    def __init__(self, s: str = None):
+        if s is None:
+            return
+        timefmt = s[-1]
+        if 'a' <= timefmt <= 'z':
+            s = s[:-1]
+        else:
+            timefmt = None
+        fields = s.split(':')
+        hours = int(fields.pop(0)) if fields else 0
+        mins = int(fields.pop(0)) if fields else 0
+        secs = int(fields.pop(0)) if fields else 0
+        seconds = timedelta(hours=abs(hours), minutes=mins, seconds=secs).total_seconds()
+        self.seconds = seconds if hours >= 0 else -seconds
+        self.is_dst = (timefmt == 'd') if timefmt else (seconds != 0)
+
+    @property
+    def delta(self):
+        return timedelta(seconds=self.seconds)
+
+    def __str__(self):
+        delta = timedelta(seconds=abs(self.seconds))
+        sign = '' if self.seconds >= 0 else '-'
+        return f'{sign}{delta}'
 
 
 @dataclass
@@ -234,7 +266,7 @@ class PosixExpr:
     month: int = 0  # 1 <= month <= 12
     week: int = 0   # 1 <= week <= 5 (5 indicates 'last')
     day: int = 0    # 0=Sunday
-    time: At = None
+    time: TimeOffset = None # POSIX says non-negative, but Scoresbysund and Nuuk both violate this
 
     def __init__(self, expr: str):
         m = re.match(r'M(\d+)\.(\d+)\.(\d+)/?(.+)?', expr)
@@ -242,7 +274,7 @@ class PosixExpr:
         self.month = int(g[0])
         self.week = int(g[1])
         self.day = int(g[2])
-        self.time = At(g[3])
+        self.time = TimeOffset(g[3])
 
     def __str__(self):
         weekstr = "last" if self.week == 5 else f'week{self.week}'
@@ -289,7 +321,7 @@ class Rule:
     in_: str   # MONTH
     on: On     # DAY
     at: At     # TIME of day
-    save: At
+    save: TimeOffset
     letters: str
 
     def __init__(self, fields: list[str]):
@@ -313,7 +345,7 @@ class Rule:
         self.in_ = match_month_name(fields.pop(0))[:3]
         self.on = On(fields.pop(0))
         self.at = At(fields.pop(0))
-        self.save =  At(fields.pop(0))
+        self.save = TimeOffset(fields.pop(0))
         self.letters = fields.pop(0)
 
     def __str__(self):
@@ -344,14 +376,13 @@ class Era:
     Describes period during which a particular set of rules applies.
     NB. Referred to as a 'zonelet' in the C++ chrono library.
     """
-    stdoff: At
+    stdoff: TimeOffset
     rule: str
     format: str
     until: Until
 
     def __init__(self, fields: list[str]):
-        self.stdoff = At(fields.pop(0))
-        assert(not self.stdoff.timefmt)
+        self.stdoff = TimeOffset(fields.pop(0))
         self.rule = fields.pop(0)
         self.format = fields.pop(0)
         self.until = Until(fields)

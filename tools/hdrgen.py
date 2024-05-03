@@ -3,7 +3,7 @@
 # Generate header and source code for linking zone information into application images
 #
 
-from tzinfo import TzData, ZoneTable, Zone, Link, remove_accents, TzString
+from tzinfo import TzData, ZoneTable, TimeOffset, Zone, Link, remove_accents, TzString
 from datetime import date, timedelta
 
 def make_tag(s: str) -> str:
@@ -124,7 +124,8 @@ def write_tzdata(tzdata, filename: str):
                             pass
                         else:
                             # A fixed amount of time (e.g. "1:00") added to standard time
-                            f.write(f'{indent}  {era.rule}\n')
+                            offset = TimeOffset(era.rule)
+                            f.write(f'{indent}  {offset}\n')
                     f.write(f'''{indent}/
   DEFINE_FSTR_LOCAL(TZNAME_{tag}, "{zone.zone_name}")
   DEFINE_FSTR_LOCAL(TZSTR_{tag}, "{zone.tzstr}")
