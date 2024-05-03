@@ -157,11 +157,12 @@ class At:
     def __init__(self, s: str = None):
         if s is None:
             return
-        self.timefmt = s[-1]
-        if 'a' <= self.timefmt <= 'z':
+        timefmt = s[-1]
+        if 'a' <= timefmt <= 'z':
             s = s[:-1]
         else:
-            self.timefmt = ''
+            timefmt = 'w'
+        self.timefmt = timefmt
         fields = s.split(':')
         if fields:
             self.hour = int(fields.pop(0))
@@ -177,16 +178,6 @@ class At:
     @property
     def delta(self):
         return timedelta(hours=self.hour, minutes=self.min, seconds=self.sec)
-
-    def adjust_utc(self, dt: datetime, stdoff: timedelta, dstoff: timedelta):
-        delta = self.delta
-        if self.timefmt in ['', 'w']:
-            return dt + delta - stdoff - dstoff
-        if self.timefmt == 's':
-            return dt + delta - stdoff
-        if self.timefmt in ['u', 'g', 'z']:
-            return dt + delta
-        raise ValueError(f'Invalid timefmt {self.timefmt}')
 
 
 @dataclass
@@ -361,13 +352,9 @@ class Rule:
         if self.from_ <= year_to <= self.to:
             return True
         return self.from_ >= year_from and self.to <= year_to
-        
 
-    def get_datetime_utc(self, year: int, stdoff: timedelta, dstoff: timedelta) -> datetime:
-        """Obtain transition date/time in UTC"""
-        d = self.on.get_date(year, self.in_)
-        dt = datetime(d.year, d.month, d.day, tzinfo=timezone.utc)
-        return self.at.adjust_utc(dt, stdoff, dstoff)
+    def get_date(self, year: int) -> date:
+        return self.on.get_date(year, self.in_)
 
 
 @dataclass
@@ -393,6 +380,12 @@ class Era:
             return self.rule.name
         else:
             return str(self.rule)
+
+    def get_tag(self, rule: Rule) -> str:
+        fmt = self.format
+        if '/' in fmt:
+            return fmt.split('/')[1 if rule.save.is_dst else 0]
+        return fmt.replace('%s', '' if rule.letters == '-' else rule.letters)
 
     def __str__(self):
         s = f'{self.stdoff} {self.rule_name} {self.format}'

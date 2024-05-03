@@ -4,7 +4,7 @@
 #
 
 from tzinfo import TzData, ZoneTable, TimeOffset, Zone, Link, remove_accents, TzString
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 def make_tag(s: str) -> str:
     class Table:
@@ -96,40 +96,59 @@ def write_tzdata(tzdata, filename: str):
 
                 f.write(f'{indent}   {TzString(zone.tzstr)}\n')
 
-                DATEFMT = '%Y %a %b %d %H:%M'
+                DATEFMT = '%Y %a %b %d'
+                DATETIMEFMT = DATEFMT + ' %H:%M'
+                prev_era_end = d_from - timedelta(seconds=1)
                 for era in zone.eras:
                     if not era.applies_to(d_from):
+                        prev_era_end = era.until.get_date()
                         continue
+
                     f.write(f'{indent} {era}\n')
 
-                    rules = tzdata.rules.get(era.rule)
-                    if rules:
-                        dstoff = timedelta()
-                        for r in rules:
-                            if r.applies_to(d_from.year, d_to.year):
-                                f.write(f'{indent}   {r}\n')
-
-                                stdoff = era.stdoff.delta
-                                for year in range(max(d_from.year, r.from_), min(d_to.year, r.to) + 1):
-                                    dt = r.get_datetime_utc(year, stdoff, dstoff)
-                                    f.write(f'{indent}     {(dt + stdoff + dstoff).strftime(DATEFMT)} {tztag}\n')
-                                    # f.write(f'{indent}     {(dt + stdoff).ctime()} STD\n')
-                                    # f.write(f'{indent}     {dt.ctime()} UTC\n')
-                                dstoff = r.save.delta
-
-                            if '/' in era.format:
-                                tztag = era.format.split('/')[1 if r.save.delta else 0]
-                            elif r.letters == '-':
-                                tztag = era.format.replace('%s', '')
-                            else:
-                                tztag = era.format.replace('%s', r.letters)
-                    elif era.rule == '-':
+                    if era.rule == '-':
                         # Standard time applies
                         pass
+                    elif rules := tzdata.rules.get(era.rule):
+                        for r in rules:
+                            if not r.applies_to(d_from.year, d_to.year):
+                                continue
+                            f.write(f'{indent}   {r}\n')
+
+                            tztag = era.get_tag(r)
+
+                            for year in range(max(d_from.year, r.from_), min(d_to.year, r.to) + 1):
+                                d = r.get_date(year)
+                                if d <= prev_era_end:
+                                    continue
+                                if not era.applies_to(d):
+                                    break
+                                dt = datetime(d.year, d.month, d.day, tzinfo=timezone.utc)
+                                dt += r.at.delta
+                                if r.at.timefmt == 's':
+                                    dt -= era.stdoff.delta
+                                    dts_new = dt.strftime(DATETIMEFMT) + ' ' + tztag
+                                elif r.at.timefmt in ['u', 'g', 'z']:
+                                    dt += era.stdoff.delta
+                                    dt += r.save.delta
+                                    dts_new = dt.strftime(DATETIMEFMT) + ' ' + tztag
+                                elif r.save.is_dst:
+                                    # Current time is STD
+                                    dt += r.save.delta
+                                    dts_new = dt.strftime(DATETIMEFMT) + ' ' + tztag
+                                else:
+                                    # TODO: Current time is DST, so we need to find the offset
+                                    dts_new = ''
+
+                                dts = d.strftime(DATEFMT) + f' {r.at}'
+
+                                f.write(f'{indent}     {dts} -> {dts_new}\n')
                     else:
                         # A fixed amount of time (e.g. "1:00") added to standard time
                         offset = TimeOffset(era.rule)
                         f.write(f'{indent}  {offset}\n')
+                    prev_era_end = era.until.get_date()
+
                 f.write(f'''{indent}/
   DEFINE_FSTR_LOCAL(TZNAME_{tag}, "{zone.zone_name}")
   DEFINE_FSTR_LOCAL(TZSTR_{tag}, "{zone.tzstr}")
