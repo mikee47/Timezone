@@ -51,7 +51,7 @@ def write_tzdata(tzdata, filename: str):
         def get_delta(zone):
             if isinstance(zone, Link) or zone.region == 'Etc':
                 return timedelta()
-            return aggregator(zr.stdoff.delta for zr in zone.rules if zr.applies_to(d_from))
+            return aggregator(era.stdoff.delta for era in zone.eras if era.applies_to(d_from))
 
         aggregator = min
         zone = aggregator(tzdata.zones, key=get_delta)
@@ -93,17 +93,17 @@ def write_tzdata(tzdata, filename: str):
                     f.write(f'{indent}   {TzString(zone.tzstr)}\n')
 
                     DATEFMT = '%Y %a %b %d %H:%M'
-                    for zr in zone.get_rules(d_from):
-                        f.write(f'{indent} {zr}\n')
+                    for era in zone.get_eras(d_from):
+                        f.write(f'{indent} {era}\n')
 
-                        rules = tzdata.rules.get(zr.rule)
+                        rules = tzdata.rules.get(era.rule)
                         if rules:
                             dstoff = timedelta()
                             for r in rules:
                                 if r.applies_to(d_from.year, d_to.year):
                                     f.write(f'{indent}   {r}\n')
 
-                                    stdoff = zr.stdoff.delta
+                                    stdoff = era.stdoff.delta
                                     for year in range(max(d_from.year, r.from_), min(d_to.year, r.to) + 1):
                                         dt = r.get_datetime_utc(year, stdoff, dstoff)
                                         f.write(f'{indent}     {(dt + stdoff + dstoff).strftime(DATEFMT)} {tztag}\n')
@@ -111,16 +111,18 @@ def write_tzdata(tzdata, filename: str):
                                         # f.write(f'{indent}     {dt.ctime()} UTC\n')
                                     dstoff = r.save.delta
 
-                                if '/' in zr.format:
-                                    tztag = zr.format.split('/')[1 if r.save.delta else 0]
+                                if '/' in era.format:
+                                    tztag = era.format.split('/')[1 if r.save.delta else 0]
                                 elif r.letters == '-':
-                                    tztag = zr.format.replace('%s', '')
+                                    tztag = era.format.replace('%s', '')
                                 else:
-                                    tztag = zr.format.replace('%s', r.letters)
-                        elif zr.rule == '-':
+                                    tztag = era.format.replace('%s', r.letters)
+                        elif era.rule == '-':
+                            # Standard time applies
                             pass
                         else:
-                            f.write(f'{indent}  {zr.rule}\n')
+                            # A fixed amount of time (e.g. "1:00") added to standard time
+                            f.write(f'{indent}  {era.rule}\n')
                     f.write(f'''{indent}/
   DEFINE_FSTR_LOCAL(TZNAME_{tag}, "{zone.zone_name}")
   DEFINE_FSTR_LOCAL(TZSTR_{tag}, "{zone.tzstr}")

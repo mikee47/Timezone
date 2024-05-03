@@ -331,7 +331,11 @@ class Rule:
 
 
 @dataclass
-class ZoneRule:
+class Era:
+    """
+    Describes period during which a particular set of rules applies.
+    NB. Referred to as a 'zonelet' in the C++ chrono libraries.
+    """
     stdoff: At
     rule: str
     format: str
@@ -374,19 +378,19 @@ class NamedItem:
 @dataclass
 class Zone(NamedItem):
     tzstr: str
-    rules: list[ZoneRule] = field(default_factory=list)
+    eras: list[Era] = field(default_factory=list)
 
-    def add_rule(self, fields: list[str]):
+    def add_era(self, fields: list[str]) -> Era:
         stdoff = fields.pop(0)
         rule = fields.pop(0)
         format = fields.pop(0)
         until = Until(fields)
-        rule = ZoneRule(stdoff, rule, format, until)
-        self.rules.append(rule)
-        return rule
+        era = Era(stdoff, rule, format, until)
+        self.eras.append(era)
+        return era
 
-    def get_rules(self, d: date) -> list[ZoneRule]:
-        return [zr for zr in self.rules if zr.applies_to(d)]
+    def get_eras(self, d: date) -> list[Era]:
+        return [e for e in self.eras if e.applies_to(d)]
 
 
 @dataclass
@@ -419,7 +423,7 @@ class TzData:
             return
         tzstr = data[nl+1:].decode("utf-8")
         zone = Zone(name, tzstr)
-        zone.add_rule(fields[2:])
+        zone.add_era(fields[2:])
         self.zones.append(zone)
         return zone
 
@@ -451,7 +455,7 @@ class TzData:
                 zone = None
                 self.add_link(fields)
             elif zone:
-                zone.add_rule(fields)
+                zone.add_era(fields)
         self.zones.sort()
 
 
