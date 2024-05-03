@@ -77,56 +77,60 @@ def write_tzdata(tzdata, filename: str):
             for zone in [z for z in tzdata.zones if z.region == region]:
                 indent = '   *'
                 tag = make_zone_tag(zone)
-                if define:
-                    f.write(f'''
+                if not define:
+                    ref = '&' if isinstance(zone, Link) else ''
+                    f.write(f'  extern const TzInfo{ref} {tag};\n')
+                    continue
+
+                f.write(f'''
   /*
 {indent} {zone.name}
 ''')
-                    if isinstance(zone, Link):
-                        link = zone
-                        zone = link.zone
-                        f.write(f'''{indent}/
+                if isinstance(zone, Link):
+                    link = zone
+                    zone = link.zone
+                    f.write(f'''{indent}/
   const TzInfo& {tag} PROGMEM = TZ::{make_namespace(zone.region)}::{make_zone_tag(zone)};
 ''')
+                    continue
+
+                f.write(f'{indent}   {TzString(zone.tzstr)}\n')
+
+                DATEFMT = '%Y %a %b %d %H:%M'
+                for era in zone.eras:
+                    if not era.applies_to(d_from):
                         continue
+                    f.write(f'{indent} {era}\n')
 
-                    f.write(f'{indent}   {TzString(zone.tzstr)}\n')
+                    rules = tzdata.rules.get(era.rule)
+                    if rules:
+                        dstoff = timedelta()
+                        for r in rules:
+                            if r.applies_to(d_from.year, d_to.year):
+                                f.write(f'{indent}   {r}\n')
 
-                    DATEFMT = '%Y %a %b %d %H:%M'
-                    for era in zone.eras:
-                        if not era.applies_to(d_from):
-                            continue
-                        f.write(f'{indent} {era}\n')
+                                stdoff = era.stdoff.delta
+                                for year in range(max(d_from.year, r.from_), min(d_to.year, r.to) + 1):
+                                    dt = r.get_datetime_utc(year, stdoff, dstoff)
+                                    f.write(f'{indent}     {(dt + stdoff + dstoff).strftime(DATEFMT)} {tztag}\n')
+                                    # f.write(f'{indent}     {(dt + stdoff).ctime()} STD\n')
+                                    # f.write(f'{indent}     {dt.ctime()} UTC\n')
+                                dstoff = r.save.delta
 
-                        rules = tzdata.rules.get(era.rule)
-                        if rules:
-                            dstoff = timedelta()
-                            for r in rules:
-                                if r.applies_to(d_from.year, d_to.year):
-                                    f.write(f'{indent}   {r}\n')
-
-                                    stdoff = era.stdoff.delta
-                                    for year in range(max(d_from.year, r.from_), min(d_to.year, r.to) + 1):
-                                        dt = r.get_datetime_utc(year, stdoff, dstoff)
-                                        f.write(f'{indent}     {(dt + stdoff + dstoff).strftime(DATEFMT)} {tztag}\n')
-                                        # f.write(f'{indent}     {(dt + stdoff).ctime()} STD\n')
-                                        # f.write(f'{indent}     {dt.ctime()} UTC\n')
-                                    dstoff = r.save.delta
-
-                                if '/' in era.format:
-                                    tztag = era.format.split('/')[1 if r.save.delta else 0]
-                                elif r.letters == '-':
-                                    tztag = era.format.replace('%s', '')
-                                else:
-                                    tztag = era.format.replace('%s', r.letters)
-                        elif era.rule == '-':
-                            # Standard time applies
-                            pass
-                        else:
-                            # A fixed amount of time (e.g. "1:00") added to standard time
-                            offset = TimeOffset(era.rule)
-                            f.write(f'{indent}  {offset}\n')
-                    f.write(f'''{indent}/
+                            if '/' in era.format:
+                                tztag = era.format.split('/')[1 if r.save.delta else 0]
+                            elif r.letters == '-':
+                                tztag = era.format.replace('%s', '')
+                            else:
+                                tztag = era.format.replace('%s', r.letters)
+                    elif era.rule == '-':
+                        # Standard time applies
+                        pass
+                    else:
+                        # A fixed amount of time (e.g. "1:00") added to standard time
+                        offset = TimeOffset(era.rule)
+                        f.write(f'{indent}  {offset}\n')
+                f.write(f'''{indent}/
   DEFINE_FSTR_LOCAL(TZNAME_{tag}, "{zone.zone_name}")
   DEFINE_FSTR_LOCAL(TZSTR_{tag}, "{zone.tzstr}")
   const TzInfo {tag} PROGMEM {{
@@ -135,9 +139,6 @@ def write_tzdata(tzdata, filename: str):
       TZSTR_{tag},
   }};
 ''')
-                else:
-                    ref = '&' if isinstance(zone, Link) else ''
-                    f.write(f'  extern const TzInfo{ref} {tag};\n')
             if region:
                 f.write(f'}} // namespace {make_namespace(region)}\n')
             f.write('\n')
