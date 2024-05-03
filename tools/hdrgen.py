@@ -93,7 +93,9 @@ def write_tzdata(tzdata, filename: str):
                     f.write(f'{indent}   {TzString(zone.tzstr)}\n')
 
                     DATEFMT = '%Y %a %b %d %H:%M'
-                    for era in zone.get_eras(d_from):
+                    for era in zone.eras:
+                        if not era.applies_to(d_from):
+                            continue
                         f.write(f'{indent} {era}\n')
 
                         rules = tzdata.rules.get(era.rule)

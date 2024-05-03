@@ -171,7 +171,7 @@ class At:
             self.sec = int(fields.pop(0))
 
     def __str__(self):
-        return f'{self.hour:02d}:{self.min:02d}:{self.sec:02d}{self.timefmt}'
+        return f'{self.hour}:{self.min:02}:{self.sec:02}{self.timefmt}'
 
     @property
     def delta(self):
@@ -292,21 +292,29 @@ class Rule:
     save: At
     letters: str
 
-    def __post_init__(self):
-        if self.from_.startswith('mi'):
+    def __init__(self, fields: list[str]):
+        from_ = fields.pop(0)
+        if from_.startswith('mi'):
             self.from_ = 0
         else:
-            self.from_ = int(self.from_)
-        if self.to.startswith('o'):
+            self.from_ = int(from_)
+
+        to = fields.pop(0)
+        if to.startswith('o'):
             self.to = self.from_
-        elif self.to.startswith('ma'):
+        elif to.startswith('ma'):
             self.to = 9999
         else:
-            self.to = int(self.to)
-        self.in_ = match_month_name(self.in_)[:3]
-        self.on = On(self.on)
-        self.at = At(self.at)
-        self.save = At(self.save)
+            self.to = int(to)
+
+        # Unused
+        _ = fields.pop(0)
+
+        self.in_ = match_month_name(fields.pop(0))[:3]
+        self.on = On(fields.pop(0))
+        self.at = At(fields.pop(0))
+        self.save =  At(fields.pop(0))
+        self.letters = fields.pop(0)
 
     def __str__(self):
         return f'{self.from_} {self.to} - {self.in_} {self.on} {self.at} {self.save} {self.letters}'
@@ -334,20 +342,29 @@ class Rule:
 class Era:
     """
     Describes period during which a particular set of rules applies.
-    NB. Referred to as a 'zonelet' in the C++ chrono libraries.
+    NB. Referred to as a 'zonelet' in the C++ chrono library.
     """
     stdoff: At
     rule: str
     format: str
     until: Until
 
-    def __post_init__(self):
-        at = At(self.stdoff)
-        assert(not at.timefmt)
-        self.stdoff = at
+    def __init__(self, fields: list[str]):
+        self.stdoff = At(fields.pop(0))
+        assert(not self.stdoff.timefmt)
+        self.rule = fields.pop(0)
+        self.format = fields.pop(0)
+        self.until = Until(fields)
+
+    @property
+    def rule_name(self) -> str:
+        if isinstance(self.rule, Rule):
+            return self.rule.name
+        else:
+            return str(self.rule)
 
     def __str__(self):
-        s = f'{self.stdoff} {self.rule} {self.format}'
+        s = f'{self.stdoff} {self.rule_name} {self.format}'
         if self.until:
             s += f' {self.until}'
         return s
@@ -378,19 +395,7 @@ class NamedItem:
 @dataclass
 class Zone(NamedItem):
     tzstr: str
-    eras: list[Era] = field(default_factory=list)
-
-    def add_era(self, fields: list[str]) -> Era:
-        stdoff = fields.pop(0)
-        rule = fields.pop(0)
-        format = fields.pop(0)
-        until = Until(fields)
-        era = Era(stdoff, rule, format, until)
-        self.eras.append(era)
-        return era
-
-    def get_eras(self, d: date) -> list[Era]:
-        return [e for e in self.eras if e.applies_to(d)]
+    eras: list[Era]
 
 
 @dataclass
@@ -406,9 +411,8 @@ class TzData:
 
     def add_rule(self, fields: list[str]) -> Rule:
         name = fields[1]
-        rule = Rule(fields[2], fields[3], fields[5], fields[6], fields[7], fields[8], fields[9])
-        rules = self.rules.setdefault(name, [])
-        rules.append(rule)
+        rule = Rule(fields[2:])
+        self.rules.setdefault(name, []).append(rule)
         return rule
 
     def add_zone(self, fields: list[str]) -> Zone:
@@ -422,8 +426,8 @@ class TzData:
         if nl < 0:
             return
         tzstr = data[nl+1:].decode("utf-8")
-        zone = Zone(name, tzstr)
-        zone.add_era(fields[2:])
+        era = Era(fields[2:])
+        zone = Zone(name, tzstr, [era])
         self.zones.append(zone)
         return zone
 
@@ -455,7 +459,8 @@ class TzData:
                 zone = None
                 self.add_link(fields)
             elif zone:
-                zone.add_era(fields)
+                era = Era(fields)
+                zone.eras.append(era)
         self.zones.sort()
 
 
