@@ -199,19 +199,24 @@ void selectCountry(String continent)
 	Menu::ready();
 }
 
+void listContinents(Vector<String>& list)
+{
+	list.clear();
+	timezones.reset();
+	while(auto zone = timezones.next()) {
+		auto s = zone.continent();
+		if(s && !list.contains(s)) {
+			list.add(s);
+		}
+	}
+}
+
 void selectContinent()
 {
 	Menu::init(F("Continents"));
 
 	Vector<String> continents;
-	timezones.reset();
-	while(auto zone = timezones.next()) {
-		auto s = zone.continent();
-		if(s && !continents.contains(s)) {
-			continents.add(s);
-		}
-	}
-
+	listContinents(continents);
 	for(auto& s : continents) {
 		Menu::additem(Zone::getContinentCaption(s), [name = s]() { selectCountry(name); });
 	}
@@ -225,23 +230,47 @@ void enterTimezone()
 		unsigned matchCount{0};
 		String match;
 		const auto linelen = line.length();
-		timezones.reset();
-		while(auto zone = timezones.next()) {
-			auto name = zone.name();
-			auto namelen = strlen(name);
-			if(namelen < linelen) {
-				continue;
-			}
-			if(line.equalsIgnoreCase(name, linelen)) {
+		if(line.indexOf('/') >= 0) {
+			timezones.reset();
+			while(auto zone = timezones.next()) {
+				auto name = zone.name();
+				auto namelen = strlen(name);
+				if(namelen < linelen) {
+					continue;
+				}
+				if(!line.equalsIgnoreCase(name, linelen)) {
+					continue;
+				}
 				if(matchCount == 0) {
 					Serial.println();
+					match = name;
 				}
-				Serial << name << endl;
-				match = name;
+				Menu::tabulator.print(name);
+				++matchCount;
+			}
+		} else {
+			Vector<String> continents;
+			listContinents(continents);
+			Serial.println();
+			for(auto& name : continents) {
+				auto namelen = name.length();
+				if(namelen < linelen) {
+					continue;
+				}
+				if(!line.equalsIgnoreCase(name.c_str(), linelen)) {
+					continue;
+				}
+				if(matchCount == 0) {
+					Serial.println();
+					match = name + '/';
+				}
+				Menu::tabulator.print(name + '/');
 				++matchCount;
 			}
 		}
+
 		if(matchCount) {
+			Menu::tabulator.println();
 			Menu::prompt();
 			Serial.print(line);
 			if(matchCount == 1) {
@@ -250,7 +279,23 @@ void enterTimezone()
 		}
 	};
 	Menu::submitCallback = [](String& line) -> void {
-		Serial << F("You selected '") << line << "'" << endl;
+		String timezone;
+		timezones.reset();
+		while(auto zone = timezones.next()) {
+			auto name = zone.name();
+			if(line.equalsIgnoreCase(name)) {
+				timezone = name;
+				break;
+			}
+		}
+
+		if(timezone) {
+			Serial << F("You selected '") << timezone << "'" << endl;
+			// TODO: Do something with this, i.e. submenu
+		} else {
+			Serial << F("Timezone '") << line << F("' not found!") << endl;
+		}
+
 		showRootMenu();
 	};
 
