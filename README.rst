@@ -25,8 +25,8 @@ set via :cpp:func:`SystemClockClass::setTimeZoneOffset`.
 The clock itself can best be kept correct using NTP.
 However, keeping the timezone offset correct is another matter.
 
-The standard C library provides support for time conversions but using those from C++ code is clunky
-and error-prone.
+The standard C library provides support for time conversions via POSIX strings,
+but using those from C++ code is clunky and error-prone.
 
 Also, `rules change <https://www.timeanddate.com/time/europe/eu-dst.html>`__.
 Not often, but nowadays users expect systems to take care of this stuff itself.
