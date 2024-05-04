@@ -13,23 +13,63 @@ namespace
 CountryMap countries;
 ZoneTable timezones;
 
+class Tabulator
+{
+public:
+	Tabulator(Print& output, unsigned colWidth = 25, unsigned lineWidth = 100)
+		: output(output), colWidth(colWidth), lineWidth(lineWidth)
+	{
+	}
+
+	void print(const String& text)
+	{
+		unsigned startColumn{column};
+		if(column % colWidth) {
+			auto count = (column + colWidth - 1) / colWidth;
+			startColumn = count * colWidth;
+		}
+
+		auto textlen = text.length();
+		if(startColumn + textlen > lineWidth) {
+			column = 0;
+			output.println();
+		} else {
+			auto padlen = startColumn - column;
+			output.print(String().pad(padlen));
+			textlen += padlen;
+		}
+		output.print(text);
+		column += textlen;
+	}
+
+	void println()
+	{
+		output.println();
+		column = 0;
+	}
+
+private:
+	Print& output;
+	unsigned colWidth;
+	unsigned lineWidth;
+	unsigned column{0};
+};
+
 namespace Menu
 {
 DEFINE_FSTR(commandPrompt, "> ");
 
 using Callback = Delegate<void()>;
-using AutoComplete = Delegate<bool(String& line)>;
-using Submit = Delegate<void(const String& line)>;
+using LineCallback = Delegate<void(String& line)>;
 
 Vector<Callback> callbacks;
-AutoComplete autoCompleteCallback;
-Submit submitCallback;
-unsigned column;
+LineCallback autoCompleteCallback;
+LineCallback submitCallback;
+Tabulator tabulator(Serial);
 
 void init(const String& caption)
 {
 	Serial << endl << caption << ":" << endl;
-	column = 0;
 	callbacks.clear();
 	autoCompleteCallback = nullptr;
 	submitCallback = nullptr;
@@ -37,33 +77,15 @@ void init(const String& caption)
 
 void additem(const String& caption, Callback callback)
 {
-	constexpr unsigned colWidth{25};
-	constexpr unsigned maxLineWidth{100};
-
 	auto choice = callbacks.count() + 1;
 
 	String s;
-	s.reserve(colWidth);
 	s += "  ";
 	s += choice;
 	s += ") ";
 	s += caption;
 
-	unsigned startColumn{column};
-	if(column % colWidth) {
-		auto count = (column + colWidth - 1) / colWidth;
-		startColumn = count * colWidth;
-	}
-
-	if(startColumn + s.length() > maxLineWidth) {
-		column = 0;
-		Serial.println();
-	} else {
-		s = s.padLeft(s.length() + startColumn - column);
-	}
-
-	Serial << s;
-	column += s.length();
+	tabulator.print(s);
 
 	callbacks.add(callback);
 }
@@ -83,7 +105,7 @@ void prompt()
 	Serial.print(commandPrompt);
 }
 
-void submit(const String& line)
+void submit(String& line)
 {
 	if(submitCallback) {
 		submitCallback(line);
@@ -96,7 +118,7 @@ void submit(const String& line)
 
 void ready()
 {
-	Serial.println();
+	tabulator.println();
 	if(callbacks.count() == 1) {
 		Serial << '1' << endl;
 		select(1);
@@ -199,11 +221,35 @@ void selectContinent()
 
 void enterTimezone()
 {
-	Menu::autoCompleteCallback = [](String& line) -> bool {
-		line = "Haggis bashers!";
-		return true;
+	Menu::autoCompleteCallback = [](String& line) -> void {
+		unsigned matchCount{0};
+		String match;
+		const auto linelen = line.length();
+		timezones.reset();
+		while(auto zone = timezones.next()) {
+			auto name = zone.name();
+			auto namelen = strlen(name);
+			if(namelen < linelen) {
+				continue;
+			}
+			if(line.equalsIgnoreCase(name, linelen)) {
+				if(matchCount == 0) {
+					Serial.println();
+				}
+				Serial << name << endl;
+				match = name;
+				++matchCount;
+			}
+		}
+		if(matchCount) {
+			Menu::prompt();
+			Serial.print(line);
+			if(matchCount == 1) {
+				line = match;
+			}
+		}
 	};
-	Menu::submitCallback = [](const String& line) -> void {
+	Menu::submitCallback = [](String& line) -> void {
 		Serial << F("You selected '") << line << "'" << endl;
 		showRootMenu();
 	};
@@ -276,14 +322,16 @@ void serialReceive(Stream& source, char, unsigned short)
 	while((c = source.read()) >= 0) {
 		if(c == '\t' && Menu::autoCompleteCallback) {
 			String line(buffer);
-			if(Menu::autoCompleteCallback(line)) {
-				auto len = buffer.getLength();
-				while(len--) {
-					buffer.processKey('\b', &Serial);
-				}
-				for(auto c : line) {
-					buffer.processKey(c, &Serial);
-				}
+			Menu::autoCompleteCallback(line);
+			auto len = buffer.getLength();
+			if(line.equals(buffer.getBuffer(), len)) {
+				continue;
+			}
+			while(len--) {
+				buffer.processKey('\b', &Serial);
+			}
+			for(auto c : line) {
+				buffer.processKey(c, &Serial);
 			}
 			continue;
 		}
