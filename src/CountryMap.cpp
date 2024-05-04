@@ -4,7 +4,7 @@
 
 void CountryMap::load(const String& filename)
 {
-	map.clear();
+	clear();
 	names.reset();
 
 	CsvReader csv(new FileStream(filename), '\t', nullptr, 256);
@@ -19,7 +19,7 @@ void CountryMap::load(const String& filename)
 	}
 
 	// We can pre-allocate storage to reduce heap fragmentation
-	if(!map.allocate(count)) {
+	if(!allocate(count)) {
 		return;
 	}
 	names.reset(new char[nameSize]);
@@ -33,7 +33,7 @@ void CountryMap::load(const String& filename)
 	while(csv.next()) {
 		auto s = csv.getValue(int(0));
 		auto code = makeCode(s[0], s[1]);
-		map[code] = nameptr;
+		HashMap::operator[](code) = nameptr;
 
 		auto name = csv.getValue(1);
 		auto len = strlen(name);

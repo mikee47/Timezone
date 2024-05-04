@@ -3,14 +3,16 @@
 #include <WHashMap.h>
 #include <memory>
 
-class CountryMap
+class CountryMap : public HashMap<uint16_t, const char*>
 {
 public:
 	void load(const String& filename);
 
+	using HashMap::operator[];
+
 	const char* operator[](const char* code)
 	{
-		return code ? map[makeCode(code[0], code[1])] : nullptr;
+		return code ? operator[](makeCode(code[0], code[1])) : nullptr;
 	}
 
 	// Convert ASCII 2-digit country code into number for efficient indexing
@@ -19,7 +21,17 @@ public:
 		return (c1 << 8) | c2;
 	}
 
+	static constexpr uint16_t makeCode(const char* s)
+	{
+		return s ? makeCode(s[0], s[1]) : 0;
+	}
+
+	static String getCodeString(uint16_t code)
+	{
+		char buf[]{char(code >> 8), char(code)};
+		return String(buf, 2);
+	}
+
 private:
-	HashMap<uint16_t, const char*> map;
 	std::unique_ptr<char[]> names;
 };
