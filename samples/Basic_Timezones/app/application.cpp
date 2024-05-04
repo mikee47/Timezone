@@ -10,15 +10,20 @@
 
 namespace
 {
-DEFINE_FSTR(commandPrompt, "> ");
-
 CountryMap countries;
 ZoneTable timezones;
 
 namespace Menu
 {
+DEFINE_FSTR(commandPrompt, "> ");
+
 using Callback = Delegate<void()>;
+using AutoComplete = Delegate<bool(String& line)>;
+using Submit = Delegate<void(const String& line)>;
+
 Vector<Callback> callbacks;
+AutoComplete autoCompleteCallback;
+Submit submitCallback;
 unsigned column;
 
 void init(const String& caption)
@@ -26,6 +31,8 @@ void init(const String& caption)
 	Serial << endl << caption << ":" << endl;
 	column = 0;
 	callbacks.clear();
+	autoCompleteCallback = nullptr;
+	submitCallback = nullptr;
 }
 
 void additem(const String& caption, Callback callback)
@@ -71,6 +78,22 @@ void select(uint8_t choice)
 	callbacks[index]();
 }
 
+void prompt()
+{
+	Serial.print(commandPrompt);
+}
+
+void submit(const String& line)
+{
+	if(submitCallback) {
+		submitCallback(line);
+	} else if(line) {
+		auto choice = line.toInt();
+		Menu::select(choice);
+	}
+	prompt();
+}
+
 void ready()
 {
 	Serial.println();
@@ -82,12 +105,23 @@ void ready()
 	}
 }
 
-void prompt()
+}; // namespace Menu
+
+String timeString(time_t time, const String& id)
 {
-	Serial.print(commandPrompt);
+	String s = DateTime(time).format(_F("%a, %d %b %Y %T"));
+	s += ' ';
+	s += id;
+	return s;
 }
 
-}; // namespace Menu
+void printCurrentTime()
+{
+	auto utc = SystemClock.now(eTZ_UTC);
+	auto local = SystemClock.now(eTZ_Local);
+	Serial << timeString(utc, "UTC") << endl;
+	Serial << timeString(local, "???") << endl;
+}
 
 void showRootMenu();
 
@@ -163,6 +197,20 @@ void selectContinent()
 	Menu::ready();
 }
 
+void enterTimezone()
+{
+	Menu::autoCompleteCallback = [](String& line) -> bool {
+		line = "Haggis bashers!";
+		return true;
+	};
+	Menu::submitCallback = [](const String& line) -> void {
+		Serial << F("You selected '") << line << "'" << endl;
+		showRootMenu();
+	};
+
+	Serial << F("Enter timezone");
+}
+
 void listTimezones()
 {
 	Serial << F("Timezone").padRight(40) << F("Caption") << endl;
@@ -177,8 +225,11 @@ void listTimezones()
 void showRootMenu()
 {
 	Menu::init(F("Main menu"));
+	printCurrentTime();
+
 	Menu::additem(F("Select continent"), selectContinent);
 	Menu::additem(F("List timezones"), listTimezones);
+	Menu::additem(F("Enter timezone"), enterTimezone);
 	Menu::ready();
 }
 
@@ -220,25 +271,40 @@ void serialReceive(Stream& source, char, unsigned short)
 	static LineBuffer<32> buffer;
 
 	using Action = LineBufferBase::Action;
-	switch(buffer.process(source, Serial)) {
-	case Action::submit: {
-		if(!buffer) {
+
+	int c;
+	while((c = source.read()) >= 0) {
+		if(c == '\t' && Menu::autoCompleteCallback) {
+			String line(buffer);
+			if(Menu::autoCompleteCallback(line)) {
+				auto len = buffer.getLength();
+				while(len--) {
+					buffer.processKey('\b', &Serial);
+				}
+				for(auto c : line) {
+					buffer.processKey(c, &Serial);
+				}
+			}
+			continue;
+		}
+		switch(buffer.processKey(c, &Serial)) {
+		case Action::submit: {
+			String line(buffer);
+			buffer.clear();
+			Menu::submit(line);
 			break;
 		}
-		auto choice = String(buffer).toInt();
-		buffer.clear();
-		Menu::select(choice);
-		break;
+
+		case Action::clear:
+			Menu::prompt();
+			break;
+
+		case Action::echo:
+		case Action::backspace:
+		case Action::none:
+			break;
+		}
 	}
-
-	case Action::clear:
-		break;
-
-	default:;
-		return;
-	}
-
-	Serial.print(commandPrompt);
 }
 
 } // namespace
