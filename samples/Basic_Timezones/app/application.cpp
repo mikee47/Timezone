@@ -16,8 +16,6 @@ ZoneTable timezones;
 
 namespace Menu
 {
-DEFINE_FSTR(commandPrompt, "> ");
-
 using Callback = Delegate<void()>;
 using LineCallback = Delegate<void(String& line)>;
 
@@ -25,6 +23,7 @@ Vector<Callback> callbacks;
 LineCallback autoCompleteCallback;
 LineCallback submitCallback;
 Tabulator tabulator(Serial);
+String commandPrompt;
 
 void init(const String& caption)
 {
@@ -32,6 +31,7 @@ void init(const String& caption)
 	callbacks.clear();
 	autoCompleteCallback = nullptr;
 	submitCallback = nullptr;
+	commandPrompt = "> ";
 }
 
 void additem(const String& caption, Callback callback)
@@ -158,25 +158,13 @@ void selectCountry(String continent)
 	Menu::ready();
 }
 
-void listContinents(Vector<String>& list)
-{
-	list.clear();
-	timezones.reset();
-	while(auto zone = timezones.next()) {
-		auto s = zone.continent();
-		if(s && !list.contains(s)) {
-			list.add(s);
-		}
-	}
-}
-
 void selectContinent()
 {
 	Menu::init(F("Continents"));
 
-	Vector<String> continents;
-	listContinents(continents);
-	for(auto& s : continents) {
+	ZoneFilter filter(timezones, true);
+	filter.match(nullptr, false);
+	for(auto& s : filter.matches) {
 		Menu::additem(Zone::getContinentCaption(s), [name = s]() { selectCountry(name); });
 	}
 
@@ -186,79 +174,40 @@ void selectContinent()
 void enterTimezone()
 {
 	Menu::autoCompleteCallback = [](String& line) -> void {
-		unsigned matchCount{0};
-		String match;
-		const auto linelen = line.length();
-		if(line.indexOf('/') >= 0) {
-			timezones.reset();
-			while(auto zone = timezones.next()) {
-				auto name = zone.name();
-				auto namelen = strlen(name);
-				if(namelen < linelen) {
-					continue;
-				}
-				if(!line.equalsIgnoreCase(name, linelen)) {
-					continue;
-				}
-				if(matchCount == 0) {
-					Serial.println();
-					match = name;
-				}
-				Menu::tabulator.print(name);
-				++matchCount;
-			}
-		} else {
-			Vector<String> continents;
-			listContinents(continents);
+		ZoneFilter filter(timezones, true);
+		switch(filter.match(line, true)) {
+		case 0:
+			return;
+		case 1:
+			line = filter[0];
+			return;
+		default:
 			Serial.println();
-			for(auto& name : continents) {
-				auto namelen = name.length();
-				if(namelen < linelen) {
-					continue;
-				}
-				if(!line.equalsIgnoreCase(name.c_str(), linelen)) {
-					continue;
-				}
-				if(matchCount == 0) {
-					Serial.println();
-					match = name + '/';
-				}
-				Menu::tabulator.print(name + '/');
-				++matchCount;
+			for(auto s : filter.matches) {
+				Menu::tabulator.print(s);
 			}
-		}
-
-		if(matchCount) {
 			Menu::tabulator.println();
 			Menu::prompt();
 			Serial.print(line);
-			if(matchCount == 1) {
-				line = match;
-			}
 		}
 	};
+
 	Menu::submitCallback = [](String& line) -> void {
-		String timezone;
 		timezones.reset();
 		while(auto zone = timezones.next()) {
 			auto name = zone.name();
 			if(line.equalsIgnoreCase(name)) {
-				timezone = name;
-				break;
+				zoneSelected(name);
+				return;
 			}
 		}
 
-		if(timezone) {
-			Serial << F("You selected '") << timezone << "'" << endl;
-			// TODO: Do something with this, i.e. submenu
-		} else {
-			Serial << F("Timezone '") << line << F("' not found!") << endl;
-		}
-
+		Serial << F("Timezone '") << line << F("' not found!") << endl;
 		showRootMenu();
 	};
 
-	Serial << F("Enter timezone");
+	Serial << F("Use TAB for auto-completion.") << endl;
+	Menu::commandPrompt = F("Timezone: ");
 }
 
 void listTimezones()

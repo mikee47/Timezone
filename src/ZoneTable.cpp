@@ -22,3 +22,47 @@ String Zone::getContinentCaption(const String& name)
 		return name;
 	}
 }
+
+size_t ZoneFilter::match(const String& filter, bool includePathSep)
+{
+	matches.clear();
+	root = "";
+	table.reset();
+	auto filterLen = filter.length();
+	int rootLen = filter.lastIndexOf('/') + 1;
+	while(auto zone = table.next()) {
+		auto name = zone.name();
+		auto nameLen = strlen(name);
+		if(nameLen < filterLen) {
+			continue;
+		}
+		if(!filter.equalsIgnoreCase(name, filterLen)) {
+			continue;
+		}
+		auto sep = strchr(name + filterLen, '/');
+		auto len = nameLen;
+		if(sep) {
+			len = includePathSep + sep - name;
+		}
+
+		if(matches.isEmpty()) {
+			root.setString(name, rootLen);
+		}
+
+		String s(name + rootLen, len - rootLen);
+		if(!matches.contains(s)) {
+			matches.add(s);
+		}
+	}
+
+	if(sorted) {
+		sortMatches();
+	}
+
+	return matches.count();
+}
+
+void ZoneFilter::sortMatches()
+{
+	matches.sort([](const String& lhs, const String& rhs) -> int { return lhs.compareTo(rhs); });
+}
