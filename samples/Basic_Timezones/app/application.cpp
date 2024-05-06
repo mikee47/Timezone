@@ -117,10 +117,10 @@ void zoneSelected(String name)
 	Menu::ready();
 }
 
-void selectZone(uint16_t code)
+void selectZone(Country::Code code)
 {
 	Menu::init(F("Available timezones for ") + countries[code]);
-	String codestr = CountryMap::getCodeString(code);
+	String codestr(code);
 	timezones.reset();
 	while(auto zone = timezones.next()) {
 		if(zone.codes().contains(codestr)) {
@@ -134,24 +134,24 @@ void selectCountry(String continent)
 {
 	Menu::init(F("Countries in ") + Zone::getContinentCaption(continent));
 
-	Vector<uint16_t> codes;
+	Vector<Country::Code> codes;
 	timezones.reset();
 	while(auto zone = timezones.next()) {
 		if(!zone.continentIs(continent)) {
 			continue;
 		}
-		for(auto s : zone.codes()) {
-			auto code = CountryMap::makeCode(s);
+		for(auto code : zone.codes()) {
 			if(!codes.contains(code)) {
 				codes.add(code);
 			}
 		}
 	}
 
-	for(auto c : countries) {
-		auto code = c.key();
+	countries.reset();
+	while(auto country = countries.next()) {
+		auto code = country.code();
 		if(codes.contains(code)) {
-			Menu::additem(c.value(), [code]() { selectZone(code); });
+			Menu::additem(country.name(), [code]() { selectZone(code); });
 		}
 	}
 

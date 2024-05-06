@@ -24,14 +24,14 @@ public:
 
 	CStringArray codes() const
 	{
-		String s = getRow(0);
+		String s = getCell(0);
 		s.replace(',', '\0');
 		return CStringArray(std::move(s));
 	}
 
 	const char* name() const
 	{
-		return getRow(1);
+		return getCell(1);
 	}
 
 	const char* nameNoContinent() const
@@ -43,7 +43,7 @@ public:
 
 	const char* comments() const
 	{
-		return getRow(2);
+		return getCell(2);
 	}
 
 	const char* caption() const
@@ -73,7 +73,7 @@ public:
 	static String getContinentCaption(const String& name);
 
 private:
-	const char* getRow(unsigned i) const
+	const char* getCell(unsigned i) const
 	{
 		return row ? (*row)[i] : nullptr;
 	}

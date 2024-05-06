@@ -1,9 +1,11 @@
 #include "include/Timezone/ZoneTable.h"
 #include <Data/Stream/FileStream.h>
 
+#define MAX_LINE_LENGTH 150
+
 void ZoneTable::load(const String& filename)
 {
-	csv = std::make_unique<CsvReader>(new FileStream(filename), '\t', nullptr, 256);
+	csv = std::make_unique<CsvReader>(new FileStream(filename), '\t', nullptr, MAX_LINE_LENGTH);
 }
 
 String Zone::getContinentCaption(const String& name)
