@@ -1,26 +1,14 @@
 #pragma once
 
-#include <Data/CsvReader.h>
-#include <memory>
+#include "CsvTable.h"
 
 /**
  * @brief Access a single zone information record
  */
-class Zone
+class Zone : public CsvRecord
 {
 public:
-	Zone()
-	{
-	}
-
-	Zone(const CStringArray& row) : row(&row)
-	{
-	}
-
-	explicit operator bool() const
-	{
-		return row;
-	}
+	using CsvRecord::CsvRecord;
 
 	CStringArray codes() const
 	{
@@ -71,47 +59,15 @@ public:
 	}
 
 	static String getContinentCaption(const String& name);
-
-private:
-	const char* getCell(unsigned i) const
-	{
-		return row ? (*row)[i] : nullptr;
-	}
-
-	const CStringArray* row{};
 };
 
 /**
  * @brief Access zone table entries stored in CSV format
  */
-class ZoneTable
+class ZoneTable : public CsvTable<Zone>
 {
 public:
 	void load(const String& filename);
-
-	/**
-	 * @brief Reset to start of table
-	 */
-	void reset()
-	{
-		if(csv) {
-			csv->reset();
-		}
-	}
-
-	/**
-	 * @brief Fetch next record
-	 */
-	Zone next()
-	{
-		if(csv && csv->next()) {
-			return Zone(csv->getRow());
-		}
-		return Zone();
-	}
-
-private:
-	std::unique_ptr<CsvReader> csv;
 };
 
 /**

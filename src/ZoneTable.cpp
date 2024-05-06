@@ -5,7 +5,7 @@
 
 void ZoneTable::load(const String& filename)
 {
-	csv = std::make_unique<CsvReader>(new FileStream(filename), '\t', nullptr, MAX_LINE_LENGTH);
+	CsvTable::load(new FileStream(filename), '\t', nullptr, MAX_LINE_LENGTH);
 }
 
 String Zone::getContinentCaption(const String& name)

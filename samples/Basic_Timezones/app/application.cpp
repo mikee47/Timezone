@@ -3,15 +3,14 @@
 #include "tzdata.h"
 #include "tzindex.h"
 #include "Tabulator.h"
-#include <Timezone/CountryMap.h>
+#include <Timezone/CountryTable.h>
 #include <Timezone/ZoneTable.h>
-#include <Data/CsvReader.h>
 #include <WVector.h>
 #include <Data/Buffer/LineBuffer.h>
 
 namespace
 {
-CountryMap countries;
+CountryTable countries;
 ZoneTable timezones;
 
 namespace Menu
