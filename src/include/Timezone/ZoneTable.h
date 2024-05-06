@@ -67,7 +67,7 @@ public:
 class ZoneTable : public CsvTable<Zone>
 {
 public:
-	void load(const String& filename);
+	ZoneTable(const String& filename);
 };
 
 /**

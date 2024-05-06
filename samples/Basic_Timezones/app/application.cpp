@@ -3,15 +3,21 @@
 #include "tzdata.h"
 #include "tzindex.h"
 #include "Tabulator.h"
-#include <Timezone/CountryTable.h>
+#include <Timezone/CountryMap.h>
 #include <Timezone/ZoneTable.h>
-#include <WVector.h>
 #include <Data/Buffer/LineBuffer.h>
 
 namespace
 {
-CountryTable countries;
-ZoneTable timezones;
+std::unique_ptr<CountryTable> openCountryTable()
+{
+	return std::make_unique<CountryTable>("countries");
+}
+
+std::unique_ptr<ZoneTable> openZoneTable()
+{
+	return std::make_unique<ZoneTable>("timezones");
+}
 
 namespace Menu
 {
@@ -116,12 +122,12 @@ void zoneSelected(String name)
 	Menu::ready();
 }
 
-void selectZone(Country::Code code)
+void selectZone(Country::Code code, String name)
 {
-	Menu::init(F("Available timezones for ") + countries[code]);
+	Menu::init(F("Available timezones for ") + name);
 	String codestr(code);
-	timezones.reset();
-	while(auto zone = timezones.next()) {
+	auto zonetab = openZoneTable();
+	while(auto zone = zonetab->next()) {
 		if(zone.codes().contains(codestr)) {
 			Menu::additem(zone.caption(), [name = String(zone.name())]() { zoneSelected(name); });
 		}
@@ -134,23 +140,26 @@ void selectCountry(String continent)
 	Menu::init(F("Countries in ") + Zone::getContinentCaption(continent));
 
 	Vector<Country::Code> codes;
-	timezones.reset();
-	while(auto zone = timezones.next()) {
-		if(!zone.continentIs(continent)) {
-			continue;
-		}
-		for(auto code : zone.codes()) {
-			if(!codes.contains(code)) {
-				codes.add(code);
+	{
+		auto zonetab = openZoneTable();
+		while(auto zone = zonetab->next()) {
+			if(!zone.continentIs(continent)) {
+				continue;
+			}
+			for(auto code : zone.codes()) {
+				if(!codes.contains(code)) {
+					codes.add(code);
+				}
 			}
 		}
 	}
 
-	countries.reset();
-	while(auto country = countries.next()) {
+	auto countries = openCountryTable();
+	while(auto country = countries->next()) {
 		auto code = country.code();
 		if(codes.contains(code)) {
-			Menu::additem(country.name(), [code]() { selectZone(code); });
+			String name(country);
+			Menu::additem(name, [code, name]() { selectZone(code, name); });
 		}
 	}
 
@@ -161,7 +170,8 @@ void selectContinent()
 {
 	Menu::init(F("Continents"));
 
-	ZoneFilter filter(timezones, true);
+	auto zonetab = openZoneTable();
+	ZoneFilter filter(*zonetab, true);
 	filter.match(nullptr, false);
 	for(auto& s : filter.matches) {
 		Menu::additem(Zone::getContinentCaption(s), [name = s]() { selectCountry(name); });
@@ -173,7 +183,8 @@ void selectContinent()
 void enterTimezone()
 {
 	Menu::autoCompleteCallback = [](String& line) -> void {
-		ZoneFilter filter(timezones, true);
+		auto zonetab = openZoneTable();
+		ZoneFilter filter(*zonetab, true);
 		switch(filter.match(line, true)) {
 		case 0:
 			return;
@@ -192,8 +203,8 @@ void enterTimezone()
 	};
 
 	Menu::submitCallback = [](String& line) -> void {
-		timezones.reset();
-		while(auto zone = timezones.next()) {
+		auto zonetab = openZoneTable();
+		while(auto zone = zonetab->next()) {
 			auto name = zone.name();
 			if(line.equalsIgnoreCase(name)) {
 				zoneSelected(name);
@@ -213,10 +224,43 @@ void listTimezones()
 {
 	Serial << F("Timezone").padRight(40) << F("Caption") << endl;
 	Serial << String().padRight(38, '-') << "  " << String().pad(38, '-') << endl;
-	timezones.reset();
-	while(auto zone = timezones.next()) {
+	auto zonetab = openZoneTable();
+	while(auto zone = zonetab->next()) {
 		Serial << String(zone.name()).padRight(40) << zone.caption() << endl;
 	}
+	showRootMenu();
+}
+
+void listCountriesByTimezone()
+{
+	// Create temporary hash map for faster country lookup
+	CountryMap countries(*openCountryTable());
+
+	// Get list of continents
+	auto zonetab = openZoneTable();
+	ZoneFilter continents(*zonetab, true);
+	continents.match(nullptr, false);
+
+	for(auto& continent : continents.matches) {
+		Serial << Zone::getContinentCaption(continent) << endl;
+		zonetab->reset();
+		while(auto zone = zonetab->next()) {
+			if(!zone.continentIs(continent)) {
+				continue;
+			}
+			Serial << "  " << zone.name() << ": ";
+
+			unsigned matchCount{0};
+			for(auto code : zone.codes()) {
+				if(matchCount++) {
+					Serial << ", ";
+				}
+				Serial << countries[code];
+			}
+			Serial << endl;
+		}
+	}
+
 	showRootMenu();
 }
 
@@ -227,41 +271,9 @@ void showRootMenu()
 
 	Menu::additem(F("Select continent"), selectContinent);
 	Menu::additem(F("List timezones"), listTimezones);
+	Menu::additem(F("List countries by timezone"), listCountriesByTimezone);
 	Menu::additem(F("Enter timezone"), enterTimezone);
 	Menu::ready();
-}
-
-void printTimezones()
-{
-	// Get list of continents
-	Vector<String> continents;
-	while(auto zone = timezones.next()) {
-		auto continent = zone.continent();
-		if(continent && !continents.contains(continent)) {
-			continents.add(continent);
-		}
-	}
-
-	for(auto& continent : continents) {
-		Serial << Zone::getContinentCaption(continent) << endl;
-		timezones.reset();
-		while(auto zone = timezones.next()) {
-			if(!zone.continentIs(continent)) {
-				continue;
-			}
-			Serial << "  " << zone.caption() << endl;
-
-			for(auto code : zone.codes()) {
-				Serial << "    " << countries[code] << endl;
-			}
-		}
-	}
-
-	// while(timezones.next()) {
-	// 	auto cmt = timezones.getValue(cmtcol);
-	// 	auto zone = timezones.getValue(zonecol);
-	// 	Serial << zone << " - " << cmt << endl;
-	// }
 }
 
 void serialReceive(Stream& source, char, unsigned short)
@@ -319,9 +331,6 @@ void init()
 	Serial.println(_F("Sming. Let's do smart things!"));
 
 	fwfs_mount();
-
-	countries.load("countries");
-	timezones.load("timezones");
 
 	Serial.onDataReceived(serialReceive);
 	showRootMenu();
@@ -386,8 +395,6 @@ void init()
 #endif
 
 	OneShotFastMs timer;
-
-	printTimezones();
 
 	auto elapsed = timer.elapsedTime();
 	Serial << "DONE " << elapsed << endl;

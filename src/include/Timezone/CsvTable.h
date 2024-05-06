@@ -35,35 +35,19 @@ protected:
  * @brief Class template for accessing CSV file as set of records
  * @tparam Record Class inherited from CsvRecord
  */
-template <class Record> class CsvTable
+template <class Record> class CsvTable : public CsvReader
 {
 public:
-	template <typename... Params> void load(Params... params)
-	{
-		csv = std::make_unique<CsvReader>(params...);
-	}
-
-	/**
-	 * @brief Reset to start of table
-	 */
-	void reset()
-	{
-		if(csv) {
-			csv->reset();
-		}
-	}
+	using CsvReader::CsvReader;
 
 	/**
 	 * @brief Fetch next record
 	 */
 	Record next()
 	{
-		if(csv && csv->next()) {
-			return Record(csv->getRow());
+		if(CsvReader::next()) {
+			return Record(getRow());
 		}
 		return Record();
 	}
-
-protected:
-	std::unique_ptr<CsvReader> csv;
 };

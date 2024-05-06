@@ -3,9 +3,8 @@
 
 #define MAX_LINE_LENGTH 150
 
-void ZoneTable::load(const String& filename)
+ZoneTable::ZoneTable(const String& filename) : CsvTable(new FileStream(filename), '\t', nullptr, MAX_LINE_LENGTH)
 {
-	CsvTable::load(new FileStream(filename), '\t', nullptr, MAX_LINE_LENGTH);
 }
 
 String Zone::getContinentCaption(const String& name)

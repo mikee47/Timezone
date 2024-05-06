@@ -3,9 +3,8 @@
 
 #define MAX_LINE_LENGTH 64
 
-void CountryTable::load(const String& filename)
+CountryTable::CountryTable(const String& filename) : CsvTable(new FileStream(filename), '\t', nullptr, MAX_LINE_LENGTH)
 {
-	return CsvTable::load(new FileStream(filename), '\t', nullptr, MAX_LINE_LENGTH);
 }
 
 Country CountryTable::operator[](Country::Code code)

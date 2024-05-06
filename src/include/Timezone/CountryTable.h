@@ -32,7 +32,7 @@ public:
 			return String(&a, 2);
 		}
 
-		constexpr bool operator==(const Code& other) const
+		constexpr bool operator==(Code other) const
 		{
 			return value == other.value;
 		}
@@ -69,7 +69,7 @@ public:
 class CountryTable : public CsvTable<Country>
 {
 public:
-	void load(const String& filename);
+	CountryTable(const String& filename);
 
 	Country operator[](Country::Code code);
 };
