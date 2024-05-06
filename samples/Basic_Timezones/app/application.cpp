@@ -127,7 +127,7 @@ void selectZone(Country::Code code, String name)
 	Menu::init(F("Available timezones for ") + name);
 	String codestr(code);
 	auto zonetab = openZoneTable();
-	while(auto zone = zonetab->next()) {
+	for(auto zone : *zonetab) {
 		if(zone.codes().contains(codestr)) {
 			Menu::additem(zone.caption(), [name = String(zone.name())]() { zoneSelected(name); });
 		}
@@ -142,7 +142,7 @@ void selectCountry(String continent)
 	Vector<Country::Code> codes;
 	{
 		auto zonetab = openZoneTable();
-		while(auto zone = zonetab->next()) {
+		for(auto zone : *zonetab) {
 			if(!zone.continentIs(continent)) {
 				continue;
 			}
@@ -155,7 +155,7 @@ void selectCountry(String continent)
 	}
 
 	auto countries = openCountryTable();
-	while(auto country = countries->next()) {
+	for(auto country : *countries) {
 		auto code = country.code();
 		if(codes.contains(code)) {
 			String name(country);
@@ -204,7 +204,7 @@ void enterTimezone()
 
 	Menu::submitCallback = [](String& line) -> void {
 		auto zonetab = openZoneTable();
-		while(auto zone = zonetab->next()) {
+		for(auto zone : *zonetab) {
 			auto name = zone.name();
 			if(line.equalsIgnoreCase(name)) {
 				zoneSelected(name);
@@ -225,7 +225,7 @@ void listTimezones()
 	Serial << F("Timezone").padRight(40) << F("Caption") << endl;
 	Serial << String().padRight(38, '-') << "  " << String().pad(38, '-') << endl;
 	auto zonetab = openZoneTable();
-	while(auto zone = zonetab->next()) {
+	for(auto zone : *zonetab) {
 		Serial << String(zone.name()).padRight(40) << zone.caption() << endl;
 	}
 	showRootMenu();
@@ -243,8 +243,7 @@ void listCountriesByTimezone()
 
 	for(auto& continent : continents.matches) {
 		Serial << Zone::getContinentCaption(continent) << endl;
-		zonetab->reset();
-		while(auto zone = zonetab->next()) {
+		for(auto zone : *zonetab) {
 			if(!zone.continentIs(continent)) {
 				continue;
 			}

@@ -28,10 +28,9 @@ size_t ZoneFilter::match(const String& filter, bool includePathSep)
 {
 	matches.clear();
 	root = "";
-	table.reset();
 	auto filterLen = filter.length();
 	int rootLen = filter.lastIndexOf('/') + 1;
-	while(auto zone = table.next()) {
+	for(auto zone : table) {
 		auto name = zone.name();
 		auto nameLen = strlen(name);
 		if(nameLen < filterLen) {
