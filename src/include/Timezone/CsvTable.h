@@ -6,9 +6,9 @@
 /**
  * @brief Base class for interpreting a record (line) in a CSV file
  */
-class CsvRecord
-{
-public:
+struct CsvRecord {
+	CStringArray row;
+
 	CsvRecord()
 	{
 	}
@@ -22,13 +22,10 @@ public:
 		return row;
 	}
 
-protected:
-	const char* getCell(unsigned i) const
+	const char* operator[](unsigned index) const
 	{
-		return row[i];
+		return row[index];
 	}
-
-	CStringArray row;
 };
 
 /**

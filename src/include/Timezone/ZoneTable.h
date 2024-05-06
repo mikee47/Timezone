@@ -5,21 +5,26 @@
 /**
  * @brief Access a single zone information record
  */
-class Zone : public CsvRecord
-{
-public:
+struct Zone : public CsvRecord {
+	enum ColumnIndex {
+		col_code,
+		col_coordinates,
+		col_name,
+		col_comments,
+	};
+
 	using CsvRecord::CsvRecord;
 
 	CStringArray codes() const
 	{
-		String s = getCell(0);
+		String s = row[col_code];
 		s.replace(',', '\0');
 		return CStringArray(std::move(s));
 	}
 
 	const char* name() const
 	{
-		return getCell(1);
+		return row[col_name];
 	}
 
 	const char* nameNoContinent() const
@@ -31,7 +36,7 @@ public:
 
 	const char* comments() const
 	{
-		return getCell(2);
+		return row[col_comments];
 	}
 
 	const char* caption() const

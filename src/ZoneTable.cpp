@@ -3,7 +3,7 @@
 
 #define MAX_LINE_LENGTH 150
 
-ZoneTable::ZoneTable(const String& filename) : CsvTable(new FileStream(filename), '\t', nullptr, MAX_LINE_LENGTH)
+ZoneTable::ZoneTable(const String& filename) : CsvTable(new FileStream(filename), '\t', "", MAX_LINE_LENGTH)
 {
 }
 

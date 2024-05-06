@@ -8,7 +8,7 @@
         "fwfs1": {
             "device": "spiFlash",
             "address": "0x00100000",
-            "size": "488K",
+            "size": "1000K",
             "type": "data",
             "subtype": "fwfs",
             "filename": "out/fwfs1.bin",

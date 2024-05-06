@@ -11,12 +11,12 @@ namespace
 {
 std::unique_ptr<CountryTable> openCountryTable()
 {
-	return std::make_unique<CountryTable>("countries");
+	return std::make_unique<CountryTable>("iso3166.tab");
 }
 
 std::unique_ptr<ZoneTable> openZoneTable()
 {
-	return std::make_unique<ZoneTable>("timezones");
+	return std::make_unique<ZoneTable>("zone1970.tab");
 }
 
 namespace Menu
@@ -263,15 +263,45 @@ void listCountriesByTimezone()
 	showRootMenu();
 }
 
+void printFile(const String& filename)
+{
+	auto table = std::make_unique<CsvTable<CsvRecord>>(new FileStream(filename), '\t', "", 256);
+	unsigned count{0};
+	unsigned comments{0};
+	size_t size{0};
+	for(auto rec : *table) {
+		++count;
+		size += rec.row.length();
+		if(rec.row.startsWith("#")) {
+			++comments;
+		}
+		// Serial << rec[0] << endl;
+	}
+	Serial << filename << ": " << size << _F(" chars in ") << count << _F(" records, ") << comments << _F(" comments.")
+		   << endl;
+}
+
 void showRootMenu()
 {
 	Menu::init(F("Main menu"));
 	printCurrentTime();
 
+	Menu::additem(F("Enter timezone"), enterTimezone);
 	Menu::additem(F("Select continent"), selectContinent);
 	Menu::additem(F("List timezones"), listTimezones);
 	Menu::additem(F("List countries by timezone"), listCountriesByTimezone);
-	Menu::additem(F("Enter timezone"), enterTimezone);
+	Menu::additem(F("Scan all files"), []() {
+		OneShotFastMs timer;
+		Directory dir;
+		if(dir.open(nullptr)) {
+			while(dir.next()) {
+				printFile(String(dir.stat().name));
+			}
+		}
+		auto elapsed = timer.elapsedTime();
+		Serial << _F("Scan took ") << elapsed.toString() << endl;
+		showRootMenu();
+	});
 	Menu::ready();
 }
 

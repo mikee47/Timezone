@@ -2,9 +2,7 @@
 
 #include "CsvTable.h"
 
-class Country : public CsvRecord
-{
-public:
+struct Country : public CsvRecord {
 	/**
 	  * @brief 2-character country code
 	  */
@@ -38,11 +36,16 @@ public:
 		}
 	};
 
+	enum ColumnIndex {
+		col_code,
+		col_name,
+	};
+
 	using CsvRecord::CsvRecord;
 
 	Code code() const
 	{
-		return Code(getCell(0));
+		return Code(row[col_code]);
 	}
 
 	operator Code() const
@@ -52,7 +55,7 @@ public:
 
 	const char* name() const
 	{
-		return getCell(1);
+		return row[col_name];
 	}
 
 	operator const char*() const
