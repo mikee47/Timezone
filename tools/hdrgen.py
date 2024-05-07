@@ -44,12 +44,10 @@ def write_tzdata(tzdata, filename: str):
         f.write('\n')
         for c in tzdata.comments:
             f.write(f'// {c}\n')
-        zone_count = len([x for x in tzdata.zones if isinstance(x, Zone)])
-        link_count = len(tzdata.zones) - zone_count
-        f.write(f'// Contains {zone_count} zones and {link_count} links.\n')
+        f.write(f'// Contains {len(tzdata.zones)} zones and {len(tzdata.links)} links.\n')
 
         def get_delta(zone):
-            if isinstance(zone, Link) or zone.region == 'Etc':
+            if zone.region == 'Etc':
                 return timedelta()
             return aggregator(era.stdoff.delta for era in zone.eras if era.applies_to(d_from))
 
@@ -74,26 +72,30 @@ def write_tzdata(tzdata, filename: str):
                 region_tag = 'TZREGION_NONE'
             if define:
                 f.write(f'  DEFINE_FSTR_LOCAL({region_tag}, "{region}")\n')
-            for zone in [z for z in tzdata.zones if z.region == region]:
+
+            for zone_or_link in (tzdata.zones + tzdata.links):
+                if zone_or_link.region != region:
+                    continue
                 indent = '   *'
-                tag = make_zone_tag(zone)
+                tag = make_zone_tag(zone_or_link)
                 if not define:
-                    ref = '&' if isinstance(zone, Link) else ''
+                    ref = '&' if isinstance(zone_or_link, Link) else ''
                     f.write(f'  extern const TzInfo{ref} {tag};\n')
                     continue
 
                 f.write(f'''
   /*
-{indent} {zone.name}
+{indent} {zone_or_link.name}
 ''')
-                if isinstance(zone, Link):
-                    link = zone
+                if isinstance(zone_or_link, Link):
+                    link = zone_or_link
                     zone = link.zone
                     f.write(f'''{indent}/
   const TzInfo& {tag} PROGMEM = TZ::{make_namespace(zone.region)}::{make_zone_tag(zone)};
 ''')
                     continue
 
+                zone = zone_or_link
                 f.write(f'{indent}   {TzString(zone.tzstr)}\n')
 
                 DATEFMT = '%Y %a %b %d'

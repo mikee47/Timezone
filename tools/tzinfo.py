@@ -374,13 +374,6 @@ class Era:
         self.format = fields.pop(0)
         self.until = Until(fields)
 
-    @property
-    def rule_name(self) -> str:
-        if isinstance(self.rule, Rule):
-            return self.rule.name
-        else:
-            return str(self.rule)
-
     def get_tag(self, rule: Rule) -> str:
         fmt = self.format
         if '/' in fmt:
@@ -388,7 +381,7 @@ class Era:
         return fmt.replace('%s', '' if rule.letters == '-' else rule.letters)
 
     def __str__(self):
-        s = f'{self.stdoff} {self.rule_name} {self.format}'
+        s = f'{self.stdoff} {self.rule} {self.format}'
         if self.until:
             s += f' {self.until}'
         return s
@@ -431,7 +424,8 @@ class TzData:
     def __init__(self):
         self.comments = []
         self.rules: dict[list[Rule]] = {}
-        self.zones: list[Zone | Link] = []
+        self.zones: list[Zone] = []
+        self.links: list[Link] = []
 
     def add_rule(self, fields: list[str]) -> Rule:
         name = fields[1]
@@ -457,12 +451,12 @@ class TzData:
 
     def add_link(self, fields: list[str]):
         tgt_name, link_name = fields[1:3]
-        if link_name in self.zones:
+        if link_name in self.links:
             print(f'{link_name} already specified, skipping')
             return
         zone = next(z for z in self.zones if z.name == tgt_name)
         link = Link(link_name, zone)
-        self.zones.append(link)
+        self.links.append(link)
 
     def load(self):
         zone = None
@@ -485,7 +479,6 @@ class TzData:
             elif zone:
                 era = Era(fields)
                 zone.eras.append(era)
-        self.zones.sort()
 
 
 
