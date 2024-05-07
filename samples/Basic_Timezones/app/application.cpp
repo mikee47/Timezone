@@ -3,12 +3,14 @@
 #include "tzdata.h"
 #include "tzindex.h"
 #include "Tabulator.h"
+#include "Menu.h"
 #include <Timezone/CountryMap.h>
 #include <Timezone/ZoneTable.h>
-#include <Data/Buffer/LineBuffer.h>
 
 namespace
 {
+Menu menu(Serial);
+
 std::unique_ptr<CountryTable> openCountryTable()
 {
 	return std::make_unique<CountryTable>("iso3166.tab");
@@ -18,80 +20,6 @@ std::unique_ptr<ZoneTable> openZoneTable()
 {
 	return std::make_unique<ZoneTable>("zone1970.tab");
 }
-
-namespace Menu
-{
-using Callback = Delegate<void()>;
-using LineCallback = Delegate<void(String& line)>;
-
-Vector<Callback> callbacks;
-LineCallback autoCompleteCallback;
-LineCallback submitCallback;
-Tabulator tabulator(Serial);
-String commandPrompt;
-
-void init(const String& caption)
-{
-	Serial << endl << caption << ":" << endl;
-	callbacks.clear();
-	autoCompleteCallback = nullptr;
-	submitCallback = nullptr;
-	commandPrompt = "> ";
-}
-
-void additem(const String& caption, Callback callback)
-{
-	auto choice = callbacks.count() + 1;
-
-	String s;
-	s += "  ";
-	s += choice;
-	s += ") ";
-	s += caption;
-
-	tabulator.print(s);
-
-	callbacks.add(callback);
-}
-
-void select(uint8_t choice)
-{
-	unsigned index = choice - 1;
-	if(index >= callbacks.count()) {
-		Serial << "Invalid choice '" << choice << "'" << endl;
-		return;
-	}
-	callbacks[index]();
-}
-
-void prompt()
-{
-	Serial.print(commandPrompt);
-}
-
-void submit(String& line)
-{
-	if(submitCallback) {
-		submitCallback(line);
-	} else if(line) {
-		auto choice = line.toInt();
-		Menu::select(choice);
-	}
-	prompt();
-}
-
-void ready()
-{
-	tabulator.println();
-	if(callbacks.count() == 1) {
-		Serial << '1' << endl;
-		select(1);
-	} else {
-		Serial << _F("Please select an option (1 - ") << callbacks.count() << ")" << endl;
-	}
-}
-
-}; // namespace Menu
 
 String timeString(time_t time, const String& id)
 {
@@ -113,31 +41,31 @@ void showRootMenu();
 
 void zoneSelected(String name)
 {
-	Menu::init(name);
-	Menu::additem(F("Make this the active zone"), [name]() {
+	menu.begin(name);
+	menu.additem(F("Make this the active zone"), [name]() {
 		Serial << F("TODO") << endl;
 		showRootMenu();
 	});
-	Menu::additem(F("Main menu"), showRootMenu);
-	Menu::ready();
+	menu.additem(F("Main menu"), showRootMenu);
+	menu.end();
 }
 
 void selectZone(Country::Code code, String name)
 {
-	Menu::init(F("Available timezones for ") + name);
+	menu.begin(F("Available timezones for ") + name);
 	String codestr(code);
 	auto zonetab = openZoneTable();
 	for(auto zone : *zonetab) {
 		if(zone.codes().contains(codestr)) {
-			Menu::additem(zone.caption(), [name = String(zone.name())]() { zoneSelected(name); });
+			menu.additem(zone.caption(), [name = String(zone.name())]() { zoneSelected(name); });
 		}
 	}
-	Menu::ready();
+	menu.end();
 }
 
 void selectCountry(String continent)
 {
-	Menu::init(F("Countries in ") + Zone::getContinentCaption(continent));
+	menu.begin(F("Countries in ") + Zone::getContinentCaption(continent));
 
 	Vector<Country::Code> codes;
 	{
@@ -159,50 +87,51 @@ void selectCountry(String continent)
 		auto code = country.code();
 		if(codes.contains(code)) {
 			String name(country);
-			Menu::additem(name, [code, name]() { selectZone(code, name); });
+			menu.additem(name, [code, name]() { selectZone(code, name); });
 		}
 	}
 
-	Menu::ready();
+	menu.end();
 }
 
 void selectContinent()
 {
-	Menu::init(F("Continents"));
+	menu.begin(F("Continents"));
 
 	auto zonetab = openZoneTable();
 	ZoneFilter filter(*zonetab, true);
 	filter.match(nullptr, false);
 	for(auto& s : filter.matches) {
-		Menu::additem(Zone::getContinentCaption(s), [name = s]() { selectCountry(name); });
+		menu.additem(Zone::getContinentCaption(s), [name = s]() { selectCountry(name); });
 	}
 
-	Menu::ready();
+	menu.end();
 }
 
 void enterTimezone()
 {
-	Menu::autoCompleteCallback = [](String& line) -> void {
+	auto completionCallback = [](String& line) -> void {
 		auto zonetab = openZoneTable();
 		ZoneFilter filter(*zonetab, true);
 		switch(filter.match(line, true)) {
 		case 0:
-			return;
+			break;
 		case 1:
 			line = filter[0];
-			return;
+			break;
 		default:
 			Serial.println();
+			Tabulator tab(Serial);
 			for(auto s : filter.matches) {
-				Menu::tabulator.print(s);
+				tab.print(s);
 			}
-			Menu::tabulator.println();
-			Menu::prompt();
+			tab.println();
+			menu.prompt();
 			Serial.print(line);
 		}
 	};
 
-	Menu::submitCallback = [](String& line) -> void {
+	auto submitCallback = [](String& line) -> void {
 		auto zonetab = openZoneTable();
 		for(auto zone : *zonetab) {
 			auto name = zone.name();
@@ -217,7 +146,7 @@ void enterTimezone()
 	};
 
 	Serial << F("Use TAB for auto-completion.") << endl;
-	Menu::commandPrompt = F("Timezone: ");
+	menu.custom(F("Timezone: "), submitCallback, completionCallback);
 }
 
 void listTimezones()
@@ -283,14 +212,14 @@ void printFile(const String& filename)
 
 void showRootMenu()
 {
-	Menu::init(F("Main menu"));
+	menu.begin(F("Main menu"));
 	printCurrentTime();
 
-	Menu::additem(F("Enter timezone"), enterTimezone);
-	Menu::additem(F("Select continent"), selectContinent);
-	Menu::additem(F("List timezones"), listTimezones);
-	Menu::additem(F("List countries by timezone"), listCountriesByTimezone);
-	Menu::additem(F("Scan all files"), []() {
+	menu.additem(F("Enter timezone"), enterTimezone);
+	menu.additem(F("Select by continent"), selectContinent);
+	menu.additem(F("List timezones"), listTimezones);
+	menu.additem(F("List countries by timezone"), listCountriesByTimezone);
+	menu.additem(F("Scan all files"), []() {
 		OneShotFastMs timer;
 		Directory dir;
 		if(dir.open(nullptr)) {
@@ -302,50 +231,7 @@ void showRootMenu()
 		Serial << _F("Scan took ") << elapsed.toString() << endl;
 		showRootMenu();
 	});
-	Menu::ready();
-}
-
-void serialReceive(Stream& source, char, unsigned short)
-{
-	static LineBuffer<32> buffer;
-
-	using Action = LineBufferBase::Action;
-
-	int c;
-	while((c = source.read()) >= 0) {
-		if(c == '\t' && Menu::autoCompleteCallback) {
-			String line(buffer);
-			Menu::autoCompleteCallback(line);
-			auto len = buffer.getLength();
-			if(line.equals(buffer.getBuffer(), len)) {
-				continue;
-			}
-			while(len--) {
-				buffer.processKey('\b', &Serial);
-			}
-			for(auto c : line) {
-				buffer.processKey(c, &Serial);
-			}
-			continue;
-		}
-		switch(buffer.processKey(c, &Serial)) {
-		case Action::submit: {
-			String line(buffer);
-			buffer.clear();
-			Menu::submit(line);
-			break;
-		}
-
-		case Action::clear:
-			Menu::prompt();
-			break;
-
-		case Action::echo:
-		case Action::backspace:
-		case Action::none:
-			break;
-		}
-	}
+	menu.end();
 }
 
 } // namespace
@@ -361,9 +247,10 @@ void init()
 
 	fwfs_mount();
 
-	Serial.onDataReceived(serialReceive);
+	Serial.onDataReceived([](Stream& source, char, unsigned short) { menu.handleInput(source); });
+
 	showRootMenu();
-	Menu::prompt();
+	menu.prompt();
 	return;
 
 #if 0
