@@ -132,16 +132,41 @@ void enterTimezone()
 	};
 
 	auto submitCallback = [](String& line) -> void {
+		// Accept abbreviated form if it matches exactly one timezone
 		auto zonetab = openZoneTable();
-		for(auto zone : *zonetab) {
-			auto name = zone.name();
-			if(line.equalsIgnoreCase(name)) {
-				zoneSelected(name);
-				return;
+		ZoneFilter filter(*zonetab, true);
+		String match;
+		unsigned pos{0};
+		bool ambiguous{false};
+		auto len = line.length();
+		while(pos < len) {
+			auto sep = line.indexOf('/', pos);
+			if(sep < 0) {
+				sep = len;
 			}
+			match += line.substring(pos, sep);
+			auto count = filter.match(match, true);
+			if(count == 1) {
+				match = filter[0];
+				pos = sep + 1;
+				continue;
+			}
+
+			match = nullptr;
+			ambiguous = (count > 1);
+			break;
 		}
 
-		Serial << F("Timezone '") << line << F("' not found!") << endl;
+		if(match && !line.endsWith('/')) {
+			zoneSelected(match);
+			return;
+		}
+
+		if(ambiguous) {
+			Serial << line << _F(" is ambiguous") << endl;
+		} else {
+			Serial << F("Timezone '") << line << F("' not found!") << endl;
+		}
 		showRootMenu();
 	};
 
