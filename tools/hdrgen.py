@@ -96,7 +96,9 @@ def write_tzdata(tzdata, filename: str):
                     continue
 
                 zone = zone_or_link
-                f.write(f'{indent}   {TzString(zone.tzstr)}\n')
+                tzstr = TzString(zone.tzstr)
+                f.write(f'{indent}   {tzstr}\n')
+                f.write(f'{indent}   {repr(tzstr)}\n')
 
                 DATEFMT = '%Y %a %b %d'
                 DATETIMEFMT = DATEFMT + ' %H:%M'

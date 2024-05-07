@@ -67,6 +67,20 @@ def remove_accents(s: str) -> str:
                                 if unicodedata.category(c) != 'Mn')
 
 
+class Month:
+    def __init__(self, value: str | int):
+        self.index = value if isinstance(value, int) else get_month_index(value)
+
+    def __bool__(self):
+        return self.index != 0
+
+    def __str__(self):
+        return MONTH_NAMES[self.index]
+
+    def __repr__(self):
+        return MONTH_NAMES_BRIEF[self.index]
+        
+
 @dataclass
 class On:
     expr: str
@@ -83,7 +97,9 @@ class On:
     def get_date(self, year: int, month: str | int) -> date:
         """Get effective date for given year/month"""
         if isinstance(month, str):
-            month = get_month_index(month) + 1
+            month = Month(month)
+        if isinstance(month, Month):
+            month = month.index + 1
         value = self.expr
         if value[0].isdigit():
             # 5        the fifth of the month
@@ -203,6 +219,9 @@ class TimeOffset:
     def delta(self):
         return timedelta(seconds=self.seconds)
 
+    def __bool__(self):
+        return self.seconds != 0
+
     def __str__(self):
         delta = timedelta(seconds=abs(self.seconds))
         sign = '' if self.seconds >= 0 else '-'
@@ -229,29 +248,21 @@ class TimeOffset:
 
 @dataclass
 class Until:
-    year: int = None
-    month: str = 'Jan'
-    day: On = None
-    at: At = None
+    year: int
+    month: Month
+    day: On
+    at: At
 
     def __init__(self, fields: list[str]):
-        if fields:
-            # YEAR
-            self.year = int(fields.pop(0))
-        if fields:
-            # MONTH (Rule IN)
-            self.month = match_name(MONTH_NAMES, fields.pop(0))
-        if fields:
-            # DAY (Rule ON)
-            self.day = On(fields.pop(0))
-        else:
-            self.day = On('1')
-        if fields:
-            # TIME (Rule AT)
-            self.at = At(fields.pop(0))
-            assert(not fields)
-        else:
-            self.at = At()
+        # YEAR
+        self.year = int(fields.pop(0)) if fields else None
+        # MONTH (Rule IN)
+        self.month = Month(fields.pop(0) if fields else 0)
+        # DAY (Rule ON)
+        self.day = On(fields.pop(0) if fields else '1')
+        # TIME (Rule AT)
+        self.at = At(fields.pop(0) if fields else None)
+        assert(not fields)
 
     def __bool__(self):
         return self.year is not None
@@ -263,9 +274,8 @@ class Until:
         if self.year is None:
             return ''
         s = str(self.year)
-        mo = get_month_index(self.month)
-        if mo or self.day or self.at:
-            s += f' {MONTH_NAMES_BRIEF[mo]}'
+        if self.month or self.day or self.at:
+            s += f' {repr(self.month)}'
         if self.day or self.at:
             s += f' {repr(self.day)}'
         if self.at:
@@ -283,30 +293,36 @@ class Until:
 
 @dataclass
 class PosixExpr:
-    month: int = 0  # 1 <= month <= 12
-    week: int = 0   # 1 <= week <= 5 (5 indicates 'last')
-    day: int = 0    # 0=Sunday
+    month: Month
+    week: int   # 1 <= week <= 5 (5 indicates 'last')
+    day: int    # 0=Sunday
     time: TimeOffset = None # POSIX says non-negative, but Scoresbysund and Nuuk both violate this
 
     def __init__(self, expr: str):
         m = re.match(r'M(\d+)\.(\d+)\.(\d+)/?(.+)?', expr)
         g = m.groups()
-        self.month = int(g[0])
+        self.month = Month(int(g[0]) - 1)
         self.week = int(g[1])
         self.day = int(g[2])
         self.time = TimeOffset(g[3])
 
     def __str__(self):
         weekstr = "last" if self.week == 5 else f'week{self.week}'
-        return f'{MONTH_NAMES[self.month-1]}.{weekstr}.{DAY_NAMES[self.day]}/{self.time}'
+        return f'{self.month}.{weekstr}.{DAY_NAMES[self.day]}/{self.time}'
+
+    def __repr__(self):
+        s = f'M{self.month.index+1}.{self.week}.{self.day}'
+        if self.time:
+            s += f'/{repr(self.time)}'
+        return s
 
 
 @dataclass
 class TzString:
     std_name: str = ''
-    std_offset: str = ''
+    std_offset: TimeOffset = None
     dst_name: str = ''
-    dst_offset: str = '0'
+    dst_offset: TimeOffset = None
     std_expr: PosixExpr = None
     dst_expr: PosixExpr = None
 
@@ -320,11 +336,11 @@ class TzString:
             ''', tzstr, flags=re.VERBOSE)
         g = m.groups()
         self.std_name = g[0].strip('<>')
-        self.std_offset = g[1]
+        self.std_offset = TimeOffset(g[1])
         if g[2]:
             self.dst_name = g[2].strip('<>')
         if g[3]:
-            self.dst_offset = g[3]
+            self.dst_offset = TimeOffset(g[3])
         if g[4]:
             self.std_expr = PosixExpr(g[4])
         if g[5]:
@@ -333,12 +349,27 @@ class TzString:
     def __str__(self):
         return f'"{self.std_name}" {self.std_offset}, "{self.dst_name}" {self.dst_offset}, {self.std_expr}, {self.dst_expr}'
 
+    def __repr__(self):
+        def esc(s: str) -> str:
+            return f'<{s}>' if s[0] in '+-' else s
+        s = f'"{esc(self.std_name)}{repr(self.std_offset)}'
+        if self.dst_name:
+            s += esc(self.dst_name)
+            if self.dst_offset:
+                s += repr(self.dst_offset)
+        if self.std_expr:
+            s += f',{repr(self.std_expr)}'
+        if self.dst_expr:
+            assert self.std_expr
+            s += f',{repr(self.dst_expr)}'
+        return s
+
 
 @dataclass
 class Rule:
     from_: int # YEAR
     to: int    # YEAR
-    in_: str   # MONTH
+    in_: Month # MONTH
     on: On     # DAY
     at: At     # TIME of day
     save: TimeOffset
@@ -362,7 +393,7 @@ class Rule:
         # Unused
         _ = fields.pop(0)
 
-        self.in_ = match_name(MONTH_NAMES, fields.pop(0))
+        self.in_ = Month(fields.pop(0))
         self.on = On(fields.pop(0))
         self.at = At(fields.pop(0))
         self.save = TimeOffset(fields.pop(0))
@@ -374,10 +405,7 @@ class Rule:
     def __repr__(self):
         from_ = 'mi' if self.from_ == YEAR_MIN else self.from_
         to = 'o' if self.to == self.from_ else 'ma' if self.to == YEAR_MAX else self.to
-        in_ = MONTH_NAMES_BRIEF[get_month_index(self.in_)]
-        at = repr(self.at)
-        save = repr(self.save)
-        return f'{from_} {to} - {in_} {self.on} {at} {save} {self.letters}'
+        return f'{from_} {to} - {repr(self.in_)} {self.on} {repr(self.at)} {repr(self.save)} {self.letters}'
 
 
     def applies_to(self, year_from: int, year_to: int = None) -> bool:
