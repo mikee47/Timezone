@@ -8,11 +8,18 @@ import os
 from tzinfo import TzData, ZoneTable, TimeOffset, Zone, Link, remove_accents, TzString
 from datetime import date, datetime, timedelta, timezone
 
-def write_tzdata(tzdata: TzData, filename: str):
-    """
-    Expand all rules inside zone descriptions, see what file size looks like
-    """
-    with open(filename, 'w') as f:
+OUTPUT_DIR = 'files'
+
+def create_file(name: str):
+    filename = os.path.join(OUTPUT_DIR, name)
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    # print(f'Writing "{filename}"...')
+    return open(filename, 'w')
+
+
+def write_tzdata_full(tzdata: TzData):
+    """For checking against original tzdata.zi file"""
+    with create_file('tzdata.zi') as f:
         for name, rules in tzdata.rules.items():
             for rule in rules:
                 f.write(f'R {name} {repr(rule)}\n')
@@ -24,8 +31,36 @@ def write_tzdata(tzdata: TzData, filename: str):
             f.write(f'L {link.zone.name} {link.name}\n')
 
 
+def write_tzdata(tzdata: TzData):
+    """
+    Put rules into separate files in the 'rules' directory
+    """
+    for name, rules in tzdata.rules.items():
+        with create_file(f'rules/{name}') as f:
+            for rule in rules:
+                f.write(f'R {name} {repr(rule)}\n')
 
-def write_zonetab(zonetab: ZoneTable, output_path: str):
+
+    """
+    Create separate .zi file for each region (area/continent)
+    """
+    regions = set([x.region for x in (tzdata.zones + tzdata.links)])
+    for region in regions:
+        with create_file(f'{region or "default"}.zi') as f:
+            for zone in tzdata.zones:
+                if zone.region != region:
+                    continue
+                f.write(f'Z {zone} ')
+                for era in zone.eras:
+                    f.write(f'{repr(era)}\n')
+            for link in tzdata.links:
+                if link.region == region:
+                    f.write(f'L {link.zone.name} {link.name}\n')
+
+
+
+
+def write_zonetab(zonetab: ZoneTable):
     """
     The two main output files are `countries` and `timezones`.
     These are compact versions of iso3166.tab and zone1970.tab.
@@ -43,32 +78,29 @@ def write_zonetab(zonetab: ZoneTable, output_path: str):
             caption is "Tbilisi"
 
     """
-    os.makedirs(output_path, exist_ok=True)
-
-    # Content of zone1970.tab without comments or coordinates, first line column names
-    with open(os.path.join(output_path, 'timezones'), 'w') as f:
-        f.write('codes\tzone\tcomment\n')
+    # Content of zone1970.tab without coordinates (saves 4-5K)
+    with create_file('zone1970.tab') as f:
         for tz in sorted(zonetab.timezones):
             f.write(f'{",".join(tz.country_codes)}')
-            # f.write(f'\t{tz.coordinates}')
+            f.write('\t') # f.write(f'\t{tz.coordinates}')
             f.write(f'\t{tz.zone.name}')
             if tz.comments:
                 f.write(f'\t{tz.comments}')
             f.write('\n')
 
-    with open(os.path.join(output_path, 'countries'), 'w') as f:
-        f.write('code\tname\n')
+    with create_file('iso3166.tab') as f:
         for c in zonetab.countries:
             f.write(f'{c.code}\t{c.name}\n')
+
 
 def main():
     tzdata = TzData()
     tzdata.load()
-    write_tzdata(tzdata, 'files/tzdata.zi')
+    write_tzdata(tzdata)
 
     zonetab = ZoneTable()
     zonetab.load(tzdata)
-    write_zonetab(zonetab, 'files')
+    write_zonetab(zonetab)
 
 
 if __name__ == '__main__':
