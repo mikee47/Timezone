@@ -42,8 +42,6 @@ def write_tzdata(tzdata, filename: str):
         d_to = date(2034, 1, 1)
 
         f.write('\n')
-        for c in tzdata.comments:
-            f.write(f'// {c}\n')
         f.write(f'// Contains {len(tzdata.zones)} zones and {len(tzdata.links)} links.\n')
 
         def get_delta(zone):

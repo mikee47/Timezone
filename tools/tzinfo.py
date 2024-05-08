@@ -510,7 +510,6 @@ class Link(NamedItem):
 
 class TzData:
     def __init__(self):
-        self.comments = []
         self.rules: dict[list[Rule]] = {}
         self.zones: list[Zone] = []
         self.links: list[Link] = []
@@ -554,7 +553,6 @@ class TzData:
             if not line:
                 continue
             if line.startswith('#'):
-                self.comments.append(line[1:].lstrip())
                 continue
             line, _, _ = line.partition('#')
             fields = line.split()
