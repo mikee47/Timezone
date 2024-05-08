@@ -7,17 +7,18 @@
 import os
 from tzinfo import TzData, ZoneTable, TimeOffset, Zone, Link, remove_accents, TzString, YEAR_MIN, YEAR_MAX
 from datetime import date, datetime, timedelta, timezone
+from argparse import ArgumentParser
 
-OUTPUT_DIR = 'files'
+output_dir = 'files'
 
 def create_file(name: str):
-    filename = os.path.join(OUTPUT_DIR, name)
+    filename = os.path.join(output_dir, name)
     os.makedirs(os.path.dirname(filename), exist_ok=True)
     # print(f'Writing "{filename}"...')
     return open(filename, 'w')
 
 
-def write_tzdata_full(tzdata: TzData):
+def write_tzdata_full(tzdata: TzData, output_dir: str):
     """For checking against original tzdata.zi file"""
     with create_file('tzdata.zi') as f:
         for name, rules in tzdata.rules.items():
@@ -70,13 +71,10 @@ def write_tzdata(tzdata: TzData, year_from=YEAR_MIN, year_to=YEAR_MAX):
 
 def write_zonetab(zonetab: ZoneTable):
     """
-    The two main output files are `countries` and `timezones`.
-    These are compact versions of iso3166.tab and zone1970.tab.
-    The first line contains field names so contents can be updated without affecting parsing.
+    Output files without comments.
 
     Entries are sorted in typical menu display order (captions) to simplify application code.
-
-    For timezones, the caption is taken from 'comments' if present, and the last segment of
+    The timezone caption is taken from 'comments' if present, and the last segment of
     the zone name if not. For example:
 
         ES\tEurope/Madrid\tSpain (mainland)
@@ -85,6 +83,7 @@ def write_zonetab(zonetab: ZoneTable):
         GE\tAsia/Tbilisi
             caption is "Tbilisi"
 
+    SPEC CHANGE: Omit co-ordinates from zone1970 (blank field) saves 4-5K
     """
     # Content of zone1970.tab without coordinates (saves 4-5K)
     with create_file('zone1970.tab') as f:
@@ -101,15 +100,22 @@ def write_zonetab(zonetab: ZoneTable):
             f.write(f'{c.code}\t{c.name}\n')
 
 
-TZDATA_PATH = '/stripe/sandboxes/tzdata/tzdb-2024a'
 
 def main():
+    parser = ArgumentParser(description='IANA database compiler')
+    parser.add_argument('source', help='Path to TZ Database source')
+    parser.add_argument('dest', help='Directory to write output files')
+    args = parser.parse_args()
+
+    global output_dir
+    output_dir = args.dest
+
     tzdata = TzData()
-    tzdata.load_full(TZDATA_PATH)
+    tzdata.load_full(args.source)
     write_tzdata(tzdata)
 
     zonetab = ZoneTable()
-    zonetab.load(tzdata, TZDATA_PATH)
+    zonetab.load(tzdata, args.source)
     write_zonetab(zonetab)
 
 

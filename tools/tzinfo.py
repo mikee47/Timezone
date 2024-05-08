@@ -541,13 +541,11 @@ class TzData:
         if link_name in self.links:
             print(f'{link_name} already specified, skipping')
             return
-        zone = next(z for z in self.zones if z.name == tgt_name)
-        link = Link(link_name, zone)
+        link = Link(link_name, tgt_name)
         self.links.append(link)
 
     def load(self, filename: str):
         zone = None
-        # for line in open(TZDATA_PATH):
         for line in open(filename):
             line = line.strip()
             if not line:
@@ -568,6 +566,11 @@ class TzData:
             elif zone:
                 era = Era(fields)
                 zone.eras.append(era)
+        # Resolve links
+        for link in self.links:
+            if isinstance(link.zone, str):
+                link.zone = next(z for z in self.zones if z.name == link.zone)
+
 
     def load_compact(self, tzdata_path: str):
         """Load the single-file compact version of the database
