@@ -34,15 +34,19 @@ def write_tzdata_full(tzdata: TzData):
 def write_tzdata(tzdata: TzData):
     """
     Put rules into separate files in the 'rules' directory
+
+    SPEC CHANGE: Omit leading 'R' and name fields as these are the same for all entries
     """
     for name, rules in tzdata.rules.items():
         with create_file(f'rules/{name}') as f:
             for rule in rules:
-                f.write(f'R {name} {repr(rule)}\n')
+                f.write(f'{repr(rule)}\n')
 
 
     """
     Create separate .zi file for each region (area/continent)
+
+    SPEC CHANGE: Put initial era (continuation data) onto separate line
     """
     regions = set([x.region for x in (tzdata.zones + tzdata.links)])
     for region in regions:
@@ -50,7 +54,7 @@ def write_tzdata(tzdata: TzData):
             for zone in tzdata.zones:
                 if zone.region != region:
                     continue
-                f.write(f'Z {zone} ')
+                f.write(f'Z {zone}\n')
                 for era in zone.eras:
                     f.write(f'{repr(era)}\n')
             for link in tzdata.links:
@@ -93,13 +97,15 @@ def write_zonetab(zonetab: ZoneTable):
             f.write(f'{c.code}\t{c.name}\n')
 
 
+TZDATA_PATH = '/stripe/sandboxes/tzdata/tzdb-2024a'
+
 def main():
     tzdata = TzData()
-    tzdata.load()
+    tzdata.load_full(TZDATA_PATH)
     write_tzdata(tzdata)
 
     zonetab = ZoneTable()
-    zonetab.load(tzdata)
+    zonetab.load(tzdata, TZDATA_PATH)
     write_zonetab(zonetab)
 
 

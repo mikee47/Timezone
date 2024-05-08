@@ -13,15 +13,29 @@ from datetime import datetime, date, timedelta
 import calendar
 from dataclasses import dataclass, field
 
-# Where to find IANA timezone database locally
+# Where to find compiled IANA timezone database locally
 ZONEINFO_PATH = '/usr/share/zoneinfo'
 
+# Primary database source files
+TZDATA_FILE_LIST = [
+    'africa',
+    'antarctica',
+    'asia',
+    'australasia',
+    'etcetera',
+    'europe',
+    'factory',
+    'northamerica',
+    'southamerica',
+    'backward',
+]
+
 # Format described here https://data.iana.org/time-zones/data/zic.8.txt
-TZDATA_PATH = ZONEINFO_PATH + '/tzdata.zi'
+TZDATA_ZI = 'tzdata.zi'
 # Country data
-COUNTRYTAB_PATH = ZONEINFO_PATH + '/iso3166.tab'
+COUNTRYTAB_FILENAME = 'iso3166.tab'
 # Zone descriptions
-ZONETAB_PATH = ZONEINFO_PATH + '/zone1970.tab'
+ZONETAB_FILENAME = 'zone1970.tab'
 
 # Values for 'min' and 'max' in data
 YEAR_MIN = 0
@@ -530,16 +544,19 @@ class TzData:
         link = Link(link_name, zone)
         self.links.append(link)
 
-    def load(self):
+    def load(self, filename: str):
         zone = None
-        for line in open(TZDATA_PATH):
+        # for line in open(TZDATA_PATH):
+        for line in open(filename):
             line = line.strip()
-            if line.startswith('# '):
-                self.comments.append(line[2:])
+            if not line:
+                continue
+            if line.startswith('#'):
+                self.comments.append(line[1:].lstrip())
                 continue
             line, _, _ = line.partition('#')
             fields = line.split()
-            rectype = fields[0]
+            rectype = fields[0][0]
             if rectype == 'Z':
                 zone = self.add_zone(fields)
             elif rectype == 'R':
@@ -552,6 +569,17 @@ class TzData:
                 era = Era(fields)
                 zone.eras.append(era)
 
+    def load_compact(self, tzdata_path: str):
+        """Load the single-file compact version of the database
+        """
+        self.load(os.path.join(tzdata_path, TZDATA_ZI))
+
+    def load_full(self, tzdata_path: str):
+        """Load the full version of the database
+        Main advantage of this is that rule names are human-readable.
+        """
+        for name in TZDATA_FILE_LIST:
+            self.load(os.path.join(tzdata_path, name))
 
 
 @dataclass
@@ -610,10 +638,10 @@ class ZoneTable:
     timezones: list[TimeZone] = None
     countries: list[Country] = None
 
-    def load(self, tzdata):
+    def load(self, tzdata: TzData, rootpath: str):
         # COUNTRIES
         countries = []
-        for line in open(COUNTRYTAB_PATH):
+        for line in open(os.path.join(rootpath, COUNTRYTAB_FILENAME)):
             if line.startswith('#'):
                 continue
             code, _, name = line.strip().partition('\t')
@@ -625,7 +653,7 @@ class ZoneTable:
         # ZONES - naming as for `tzselect``
         self.timezones = []
         unique_regions = set()
-        for line in open(ZONETAB_PATH):
+        for line in open(os.path.join(rootpath, ZONETAB_FILENAME)):
             if line.startswith('#'):
                 continue
             fields = line.strip().split('\t')
@@ -633,8 +661,12 @@ class ZoneTable:
             coordinates = fields.pop(0)
             tz = fields.pop(0)
             comments = fields.pop(0) if fields else ''
-            zone = next(z for z in tzdata.zones if z.name == tz)
-            self.timezones.append(TimeZone(country_codes, coordinates, zone, comments))
+            try:
+                zone = next(z for z in tzdata.zones if z.name == tz)
+                self.timezones.append(TimeZone(country_codes, coordinates, zone, comments))
+            except StopIteration:
+                print(f'Zone {tz} not available')
+                pass
 
         # 1) Continent or Ocean
         self.continents = []
