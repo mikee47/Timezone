@@ -1,0 +1,232 @@
+#pragma once
+
+#include "CsvTable.h"
+#include "TzData.h"
+
+/**
+ * @brief Base type for reading .zi records
+ *
+ * Use `ZoneRecord`, `EraRecord` or `LinkRecord` to access according to type.
+ */
+struct TzInfoRecord : public CsvRecord {
+	enum class Type : char {
+		invalid,
+		zone,
+		era,
+		link,
+	};
+
+	Type type() const
+	{
+		auto s = row[0];
+		if(!s) {
+			return Type::invalid;
+		}
+		char c = *s;
+		switch(c) {
+		case 'Z':
+			return Type::zone;
+		case 'L':
+			return Type::link;
+		default:
+			return (c == '-') || isdigit(c) ? Type::era : Type::invalid;
+		}
+	}
+
+	using CsvRecord::CsvRecord;
+};
+
+struct ZoneRecord {
+	enum ColumnIndex {
+		col_type,	 // Z
+		col_location, // Without area
+	};
+
+	const CStringArray& row;
+
+	ZoneRecord(const TzInfoRecord& rec) : row(rec.row)
+	{
+	}
+
+	const char* location() const
+	{
+		return row[col_location];
+	}
+};
+
+struct EraRecord {
+	enum ColumnIndex {
+		col_stdoff,
+		col_rule,
+		col_format,
+		col_year,
+		col_month,
+		col_day,
+		col_time,
+	};
+
+	const CStringArray& row;
+
+	EraRecord(const TzInfoRecord& rec) : row(rec.row)
+	{
+	}
+
+	TzData::TimeOffset stdoff() const
+	{
+		return row[col_stdoff];
+	}
+
+	const char* rule() const
+	{
+		return row[col_rule];
+	}
+
+	const char* format() const
+	{
+		return row[col_format];
+	}
+
+	const char* year() const
+	{
+		return row[col_year];
+	}
+
+	const char* month() const
+	{
+		return row[col_month];
+	}
+
+	const char* day() const
+	{
+		return row[col_day];
+	}
+
+	const char* time() const
+	{
+		return row[col_time];
+	}
+
+	TzData::Until until() const
+	{
+		return {year(), month(), day(), time()};
+	}
+
+	enum class RuleKind {
+		none,
+		time, // Contains a TimeOffset value
+		rule, // External rule requires lookup
+	};
+
+	RuleKind ruleKind() const
+	{
+		auto s = rule();
+		if(!s) {
+			return RuleKind::none;
+		}
+		if(s[0] == '-') {
+			return s[1] ? RuleKind::time : RuleKind::none;
+		}
+		return RuleKind::rule;
+	}
+};
+
+struct LinkRecord {
+	enum ColumnIndex {
+		col_type, // L
+		col_zone,
+		col_location, // Without area
+	};
+
+	const CStringArray& row;
+
+	LinkRecord(const TzInfoRecord& rec) : row(rec.row)
+	{
+	}
+
+	const char* type() const
+	{
+		return row[col_type];
+	}
+
+	const char* zone() const
+	{
+		return row[col_zone];
+	}
+
+	const char* location() const
+	{
+		return row[col_location];
+	}
+};
+
+struct RuleRecord : public CsvRecord {
+	enum ColumnIndex {
+		// SPEC CHANGE: These two fields are the same for every entry in a file
+		// col_type, // R
+		// col_name,
+		col_from,
+		col_to,
+		col_unused,
+		col_in,
+		col_on,
+		col_at,
+		col_save,
+		col_letters,
+	};
+
+	using CsvRecord::CsvRecord;
+
+	TzData::Year from() const
+	{
+		return TzData::Year(row[col_from]);
+	}
+
+	TzData::Year to() const
+	{
+		return TzData::Year(row[col_to], from());
+	}
+
+	TzData::Month in() const
+	{
+		return row[col_in];
+	}
+
+	TzData::On on() const
+	{
+		return row[col_on];
+	}
+
+	TzData::At at() const
+	{
+		return row[col_at];
+	}
+
+	TzData::TimeOffset save() const
+	{
+		return row[col_save];
+	}
+
+	const char* letters() const
+	{
+		return row[col_letters];
+	}
+
+	size_t printTo(Print& p) const
+	{
+		size_t n{0};
+		n += p.print(from());
+		n += p.print(' ');
+		n += p.print(to());
+		n += p.print(' ');
+		n += p.print(String(in()));
+		n += p.print(' ');
+		n += p.print(String(on()));
+		n += p.print(' ');
+		n += p.print(String(at()));
+		n += p.print(' ');
+		n += p.print(String(save()));
+		n += p.print(' ');
+		n += p.print(letters());
+		return n;
+	}
+};

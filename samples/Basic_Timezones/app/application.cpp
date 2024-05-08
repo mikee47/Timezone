@@ -1,11 +1,10 @@
 #include <SmingCore.h>
 #include <Timezone.h>
-#include "tzdata.h"
-#include "tzindex.h"
 #include "Tabulator.h"
 #include "Menu.h"
 #include <Timezone/CountryMap.h>
 #include <Timezone/ZoneTable.h>
+#include <Timezone/TzInfo.h>
 
 namespace
 {
@@ -37,6 +36,86 @@ void printCurrentTime()
 	Serial << timeString(local, "???") << endl;
 }
 
+void printTzInfo(const String& name)
+{
+	auto showRule = [](const char* name, TzData::Year from, TzData::Year to) {
+		auto rules = std::make_unique<CsvTable<RuleRecord>>(new FileStream(F("rules/") + name), ' ', "", 64);
+		for(auto rule : *rules) {
+			if(rule.to() < from) {
+				continue;
+			}
+			if(rule.from() > to) {
+				break;
+			}
+			Serial << "    " << rule << endl;
+			// Serial << "    " << rule.row.join(" ") << endl;
+		}
+	};
+
+	String area;
+	String location;
+	int i = name.lastIndexOf('/');
+	if(i < 0) {
+		area = F("default");
+		location = name;
+	} else {
+		area = name.substring(0, i);
+		location = name.substring(i + 1);
+	}
+	auto zoneInfo = std::make_unique<CsvTable<TzInfoRecord>>(new FileStream(area + ".zi"), ' ', "", 64);
+	TzData::Year yearFrom{};
+	bool found{false};
+	for(auto rec : *zoneInfo) {
+		switch(rec.type()) {
+		case TzInfoRecord::Type::zone: {
+			if(found) {
+				return;
+			}
+			ZoneRecord zone(rec);
+			found = (location == zone.location());
+			break;
+		}
+		case TzInfoRecord::Type::link: {
+			LinkRecord link(rec);
+			if(found) {
+				return;
+			}
+			if(location == link.location()) {
+				Serial << _F("Link ") << link.location() << " -> " << link.zone() << endl;
+				return;
+			}
+			break;
+		}
+		case TzInfoRecord::Type::era: {
+			if(!found) {
+				break;
+			}
+			EraRecord era(rec);
+			auto until = era.until();
+			if(until) {
+				Serial << "Until " << String(until);
+			} else {
+				Serial << "From " << yearFrom;
+			}
+			Serial << " stdoff " << String(era.stdoff());
+			auto ruleKind = era.ruleKind();
+			if(ruleKind == EraRecord::RuleKind::time) {
+				TzData::TimeOffset time(era.rule());
+				Serial << ", dstoff " << String(time);
+			}
+			Serial << endl << "  " << era.row.join(" ") << endl;
+			if(ruleKind == EraRecord::RuleKind::rule) {
+				showRule(era.rule(), yearFrom, until.year);
+			}
+			yearFrom = until.year + 1;
+			break;
+		}
+		case TzInfoRecord::Type::invalid:
+			break;
+		}
+	}
+}
+
 void showRootMenu();
 
 void zoneSelected(String name)
@@ -44,6 +123,10 @@ void zoneSelected(String name)
 	menu.begin(name);
 	menu.additem(F("Make this the active zone"), [name]() {
 		Serial << F("TODO") << endl;
+		showRootMenu();
+	});
+	menu.additem(F("Show details"), [name]() {
+		printTzInfo(name);
 		showRootMenu();
 	});
 	menu.additem(F("Main menu"), showRootMenu);
@@ -276,67 +359,4 @@ void init()
 
 	showRootMenu();
 	menu.prompt();
-	return;
-
-#if 0
-	auto check = [](const TzInfo& zone) {
-		TZ::setZone(zone.rules);
-		Serial << endl << zone.fullName() << ": " << _tzname[0] << ", " << _tzname[1] << ", " << zone.rules << endl;
-		TZ::calcLimits(2024);
-
-		// struct tm tm = {
-		// 	.tm_hour = 21,
-		// 	.tm_mday = 27,
-		// 	.tm_mon = 4 - 1,
-		// 	.tm_year = 2024 - 1900,
-		// };
-		// auto time = mktime(&tm);
-		// Serial << "mktime " << DateTime(time).toHTTPDate() << endl;
-
-		auto& tzinfo = TZ::getInfo();
-		Serial << "tzrule[0] " << DateTime(tzinfo.__tzrule[0].change).toHTTPDate() << endl;
-		Serial << "tzrule[1] " << DateTime(tzinfo.__tzrule[1].change).toHTTPDate() << endl;
-	};
-
-	// These two have invalid POSIX strings: time is negative
-	check(TZ::America::Scoresbysund);
-	check(TZ::America::Nuuk);
-
-	// check(TZ::Europe::London);
-	// check(TZ::Europe::Berlin);
-	// check(TZ::Etc::GMT_N10);
-	// check(TZ::CET);
-	// check(TZ::Factory);
-	// check(TZ::Asia::Gaza);
-	// check(TZ::GMT);
-	// check(TZ::Canada::Pacific);
-	// check(TZ::Pacific::Chatham);
-	// check(TZ::Asia::Famagusta);
-
-#endif
-
-#if 0
-
-	// for(auto& country : *TZ::Index::europe.countries) {
-	// 	Serial << *country.name << endl;
-	// 	for(auto& tz : *country.timezones) {
-	// 		Serial << "  " << tz.caption() << endl;
-	// 	}
-	// }
-
-	for(auto& area : TZ::Index::areas) {
-		Serial << area.caption() << endl;
-		for(auto& country : *area.countries) {
-			Serial << "  " << *country.name << endl;
-			for(auto& tz : *country.timezones) {
-				Serial << "    " << tz.caption() << endl;
-			}
-		}
-	}
-#endif
-
-	OneShotFastMs timer;
-
-	auto elapsed = timer.elapsedTime();
-	Serial << "DONE " << elapsed << endl;
 }
