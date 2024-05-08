@@ -63,15 +63,15 @@ void selectZone(Country::Code code, String name)
 	menu.end();
 }
 
-void selectCountry(String continent)
+void selectCountry(String area)
 {
-	menu.begin(F("Countries in ") + Zone::getContinentCaption(continent));
+	menu.begin(F("Countries in ") + Zone::getAreaCaption(area));
 
 	Vector<Country::Code> codes;
 	{
 		auto zonetab = openZoneTable();
 		for(auto zone : *zonetab) {
-			if(!zone.continentIs(continent)) {
+			if(!zone.areaIs(area)) {
 				continue;
 			}
 			for(auto code : zone.codes()) {
@@ -94,15 +94,15 @@ void selectCountry(String continent)
 	menu.end();
 }
 
-void selectContinent()
+void selectArea()
 {
-	menu.begin(F("Continents"));
+	menu.begin(F("Areas"));
 
 	auto zonetab = openZoneTable();
 	ZoneFilter filter(*zonetab, true);
 	filter.match(nullptr, false);
 	for(auto& s : filter.matches) {
-		menu.additem(Zone::getContinentCaption(s), [name = s]() { selectCountry(name); });
+		menu.additem(Zone::getAreaCaption(s), [name = s]() { selectCountry(name); });
 	}
 
 	menu.end();
@@ -190,15 +190,15 @@ void listCountriesByTimezone()
 	// Create temporary hash map for faster country lookup
 	CountryMap countries(*openCountryTable());
 
-	// Get list of continents
+	// Get list of areas
 	auto zonetab = openZoneTable();
-	ZoneFilter continents(*zonetab, true);
-	continents.match(nullptr, false);
+	ZoneFilter areas(*zonetab, true);
+	areas.match(nullptr, false);
 
-	for(auto& continent : continents.matches) {
-		Serial << Zone::getContinentCaption(continent) << endl;
+	for(auto& area : areas.matches) {
+		Serial << Zone::getAreaCaption(area) << endl;
 		for(auto zone : *zonetab) {
-			if(!zone.continentIs(continent)) {
+			if(!zone.areaIs(area)) {
 				continue;
 			}
 			Serial << "  " << zone.name() << ": ";
@@ -241,7 +241,7 @@ void showRootMenu()
 	printCurrentTime();
 
 	menu.additem(F("Enter timezone"), enterTimezone);
-	menu.additem(F("Select by continent"), selectContinent);
+	menu.additem(F("Select by area"), selectArea);
 	menu.additem(F("List timezones"), listTimezones);
 	menu.additem(F("List countries by timezone"), listCountriesByTimezone);
 	menu.additem(F("Scan all files"), []() {
@@ -324,9 +324,9 @@ void init()
 	// 	}
 	// }
 
-	for(auto& continent : TZ::Index::continents) {
-		Serial << continent.caption() << endl;
-		for(auto& country : *continent.countries) {
+	for(auto& area : TZ::Index::areas) {
+		Serial << area.caption() << endl;
+		for(auto& country : *area.countries) {
 			Serial << "  " << *country.name << endl;
 			for(auto& tz : *country.timezones) {
 				Serial << "    " << tz.caption() << endl;

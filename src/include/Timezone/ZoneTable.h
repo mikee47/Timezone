@@ -27,7 +27,7 @@ struct Zone : public CsvRecord {
 		return row[col_name];
 	}
 
-	const char* nameNoContinent() const
+	const char* nameNoArea() const
 	{
 		auto s = name();
 		auto sep = strchr(s, '/');
@@ -41,29 +41,29 @@ struct Zone : public CsvRecord {
 
 	const char* caption() const
 	{
-		return comments() ?: nameNoContinent();
+		return comments() ?: nameNoArea();
 	}
 
-	String continent() const
+	String area() const
 	{
 		auto s = name();
 		auto sep = strchr(s, '/');
 		return sep ? String(s, sep - s) : nullptr;
 	}
 
-	bool continentIs(const String& continent) const
+	bool areaIs(const String& area) const
 	{
 		auto s = name();
-		auto len = continent.length();
-		return strncmp(s, continent.c_str(), len) == 0 && s[len] == '/';
+		auto len = area.length();
+		return strncmp(s, area.c_str(), len) == 0 && s[len] == '/';
 	}
 
-	String getContinentCaption() const
+	String getAreaCaption() const
 	{
-		return getContinentCaption(continent());
+		return getAreaCaption(area());
 	}
 
-	static String getContinentCaption(const String& name);
+	static String getAreaCaption(const String& name);
 };
 
 /**

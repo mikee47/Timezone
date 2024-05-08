@@ -46,22 +46,22 @@ def write_tzdata(tzdata: TzData, year_from=YEAR_MIN, year_to=YEAR_MAX):
 
 
     """
-    Create separate .zi file for each region (area/continent)
+    Create separate .zi file for each area
 
     SPEC CHANGE: Put initial era (continuation data) onto separate line
     """
-    regions = set([x.region for x in (tzdata.zones + tzdata.links)])
-    for region in regions:
-        with create_file(f'{region or "default"}.zi') as f:
+    areas = set([x.area for x in (tzdata.zones + tzdata.links)])
+    for area in areas:
+        with create_file(f'{area or "default"}.zi') as f:
             for zone in tzdata.zones:
-                if zone.region != region:
+                if zone.area != area:
                     continue
                 f.write(f'Z {zone}\n')
                 for era in zone.eras:
                     if era.until.get_date() >= date(year_from, 1, 1):
                         f.write(f'{repr(era)}\n')
             for link in tzdata.links:
-                if link.region == region:
+                if link.area == area:
                     f.write(f'L {link.zone.name} {link.name}\n')
 
 

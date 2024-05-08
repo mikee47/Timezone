@@ -153,7 +153,7 @@ def scan_zone(name: str):
     scan_zonefile(os.path.join(ZONEINFO_PATH, name))
 
 
-continents = [
+areas = [
     'Africa',
     'America',
     'Antarctica',
@@ -177,7 +177,7 @@ def scan_dirs(root, dirs):
             # print('NAMES', wnames)
 
 def scan_all():
-    scan_dirs('', continents)
+    scan_dirs('', areas)
 
 def main():
     scan_all()

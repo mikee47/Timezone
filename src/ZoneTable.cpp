@@ -7,7 +7,7 @@ ZoneTable::ZoneTable(const String& filename) : CsvTable(new FileStream(filename)
 {
 }
 
-String Zone::getContinentCaption(const String& name)
+String Zone::getAreaCaption(const String& name)
 {
 	constexpr auto dig2 = [](char c1, char c2) -> uint16_t { return (c1 << 8) | c2; };
 	auto strptr = name.c_str();

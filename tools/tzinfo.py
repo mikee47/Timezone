@@ -487,12 +487,14 @@ class NamedItem:
         return self.name < str(other)
 
     @property
-    def region(self) -> str:
-        return self.name.rpartition('/')[0]
+    def area(self) -> str:
+        a, _, b = self.name.partition('/')
+        return a if b else ''
 
     @property
-    def zone_name(self) -> str:
-        return self.name.rpartition('/')[2]
+    def location(self) -> str:
+        a, _, b = self.name.partition('/')
+        return b or a
 
 
 @dataclass
@@ -591,7 +593,7 @@ class TimeZone:
 
     @property
     def caption(self):
-        return self.comments or self.zone.zone_name
+        return self.comments or self.zone.location
 
     def __lt__(self, other):
         return self.caption.lower() < other.caption.lower()
@@ -613,13 +615,13 @@ class Country:
 
 
 @dataclass
-class Continent:
+class Area:
     name: str
     countries: list[Country]
 
     @property
     def caption(self):
-        """Return a slightly more user-friendly continent string, as given by `tzselect`"""
+        """Return a slightly more user-friendly area string, as given by `tzselect`"""
         name = self.name
         if name == 'America':
             return f'{name}s'
@@ -634,7 +636,7 @@ class Continent:
 
 @dataclass
 class ZoneTable:
-    continents: list[Continent] = None
+    areas: list[Area] = None
     timezones: list[TimeZone] = None
     countries: list[Country] = None
 
@@ -652,11 +654,11 @@ class ZoneTable:
 
         # ZONES - naming as for `tzselect``
         self.timezones = []
-        unique_regions = set()
         for line in open(os.path.join(rootpath, ZONETAB_FILENAME)):
+            line = line.strip()
             if line.startswith('#'):
                 continue
-            fields = line.strip().split('\t')
+            fields = line.split('\t')
             country_codes = fields.pop(0).split(',')
             coordinates = fields.pop(0)
             tz = fields.pop(0)
@@ -668,27 +670,27 @@ class ZoneTable:
                 print(f'Zone {tz} not available')
                 pass
 
-        # 1) Continent or Ocean
-        self.continents = []
-        continent_names = sorted(list(set(tz.zone.region.partition('/')[0]
+        # 1) Area
+        self.areas = []
+        area_names = sorted(list(set(tz.zone.area.partition('/')[0]
                                         for tz in self.timezones)), key=str.lower)
-        for continent_name in continent_names:
+        for area_name in area_names:
             codes = set()
             for tz in self.timezones:
-                if tz.zone.name.startswith(continent_name):
+                if tz.zone.name.startswith(area_name):
                     codes |= set(tz.country_codes)
             # 2) Country
             countries = [c for c in self.countries if c.code in codes]
-            continent = Continent(continent_name, countries)
-            self.continents.append(continent)
+            area = Area(area_name, countries)
+            self.areas.append(area)
             for country in countries:
                 # 3) Zone
                 country.timezones = sorted([tz for tz in self.timezones if country.code in tz.country_codes])
 
     def print(self):
-        for icon, continent in enumerate(self.continents):
-            print(f'{icon+1}) {continent.caption}')
-            for icnt, country in enumerate(continent.countries):
+        for icon, area in enumerate(self.areas):
+            print(f'{icon+1}) {area.caption}')
+            for icnt, country in enumerate(area.countries):
                 print(f'  {icon+1}.{icnt+1}) {country.name}')
                 for it, tz in enumerate(country.timezones):
                     desc = f'{icon+1}.{icnt+1}.{it+1}) {tz.caption}'

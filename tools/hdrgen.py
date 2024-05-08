@@ -16,7 +16,7 @@ def make_tag(s: str) -> str:
 
 def make_zone_tag(zone: Zone) -> str:
     table = str.maketrans({'-': '_N', '+': '_P'})
-    return zone.zone_name.translate(table)
+    return zone.location.translate(table)
 
 
 def make_namespace(s: str) -> str:
@@ -47,7 +47,7 @@ def write_tzdata(tzdata, filename: str):
         f.write(f'// Contains {len(tzdata.zones)} zones and {len(tzdata.links)} links.\n')
 
         def get_delta(zone):
-            if zone.region == 'Etc':
+            if zone.area == 'Etc':
                 return timedelta()
             return aggregator(era.stdoff.delta for era in zone.eras if era.applies_to(d_from))
 
@@ -64,17 +64,17 @@ def write_tzdata(tzdata, filename: str):
         f.write('\n')
 
         f.write('namespace TZ {\n')
-        for region in sorted(set(z.region for z in tzdata.zones)):
-            if region:
-                region_tag = 'TZREGION_' + make_tag(region)
-                f.write(f'namespace {make_namespace(region)} {{\n')
+        for area in sorted(set(z.area for z in tzdata.zones)):
+            if area:
+                area_tag = 'TZAREA_' + make_tag(area)
+                f.write(f'namespace {make_namespace(area)} {{\n')
             else:
-                region_tag = 'TZREGION_NONE'
+                area_tag = 'TZAREA_NONE'
             if define:
-                f.write(f'  DEFINE_FSTR_LOCAL({region_tag}, "{region}")\n')
+                f.write(f'  DEFINE_FSTR_LOCAL({area_tag}, "{area}")\n')
 
             for zone_or_link in (tzdata.zones + tzdata.links):
-                if zone_or_link.region != region:
+                if zone_or_link.area != area:
                     continue
                 indent = '   *'
                 tag = make_zone_tag(zone_or_link)
@@ -91,7 +91,7 @@ def write_tzdata(tzdata, filename: str):
                     link = zone_or_link
                     zone = link.zone
                     f.write(f'''{indent}/
-  const TzInfo& {tag} PROGMEM = TZ::{make_namespace(zone.region)}::{make_zone_tag(zone)};
+  const TzInfo& {tag} PROGMEM = TZ::{make_namespace(zone.area)}::{make_zone_tag(zone)};
 ''')
                     continue
 
@@ -154,16 +154,16 @@ def write_tzdata(tzdata, filename: str):
                     prev_era_end = era.until.get_date()
 
                 f.write(f'''{indent}/
-  DEFINE_FSTR_LOCAL(TZNAME_{tag}, "{zone.zone_name}")
+  DEFINE_FSTR_LOCAL(TZNAME_{tag}, "{zone.location}")
   DEFINE_FSTR_LOCAL(TZSTR_{tag}, "{zone.tzstr}")
   const TzInfo {tag} PROGMEM {{
-      {region_tag},
+      {area_tag},
       TZNAME_{tag},
       TZSTR_{tag},
   }};
 ''')
-            if region:
-                f.write(f'}} // namespace {make_namespace(region)}\n')
+            if area:
+                f.write(f'}} // namespace {make_namespace(area)}\n')
             f.write('\n')
         f.write('} // namespace TZ\n')
 
@@ -174,15 +174,15 @@ def write_tzdata(tzdata, filename: str):
 #include <WString.h>
 
 struct TzInfo {
-    const FSTR::String& region;
+    const FSTR::String& area;
     const FSTR::String& name;
     const FSTR::String& rules;
 
     String fullName() const
     {
         String s;
-        if(region.length() != 0) {
-            s += region;
+        if(area.length() != 0) {
+            s += area;
             s += '/';
         }
         s += name;
@@ -204,9 +204,9 @@ def write_zonetab(zonetab, filename: str):
     def write_file(f, define: bool):
         if define:
             unique_strings = set()
-            for continent in zonetab.continents:
-                unique_strings.add(continent.name)
-                for country in continent.countries:
+            for area in zonetab.areas:
+                unique_strings.add(area.name)
+                for country in area.countries:
                     unique_strings.add(country.name)
                     unique_strings |= set(tz.comments for tz in country.timezones)
             for s in sorted(list(unique_strings)):
@@ -220,7 +220,7 @@ def write_zonetab(zonetab, filename: str):
                 f.write(f'''
 const TimeZone {tz_tag} PROGMEM {{ {{}},
     {lat}, {lng},
-    &TZ::{make_namespace(tz.zone.region)}::{make_zone_tag(tz.zone)},
+    &TZ::{make_namespace(tz.zone.area)}::{make_zone_tag(tz.zone)},
     {comments},
 ''')
                 f.write('};\n')
@@ -246,32 +246,32 @@ const Country cnt_{country_tag} PROGMEM {{ {{}},
             else:
                 f.write(f'extern const Country cnt_{country_tag};\n')
 
-        for continent in zonetab.continents:
-            continent_tag = make_tag(continent.name)
+        for area in zonetab.areas:
+            area_tag = make_tag(area.name)
             if define:
-                f.write(f'DEFINE_FSTR_VECTOR_LOCAL(countries_{continent_tag}, Country')
-                for country in continent.countries:
+                f.write(f'DEFINE_FSTR_VECTOR_LOCAL(countries_{area_tag}, Country')
+                for country in area.countries:
                     country_tag = make_tag(country.name)
                     f.write(f',\n  &cnt_{country_tag}')
                 f.write(f''')
 
-const Continent {continent_tag} PROGMEM {{ {{}},
-    &str_{continent_tag},
-    &countries_{continent_tag},
+const Area {area_tag} PROGMEM {{ {{}},
+    &str_{area_tag},
+    &countries_{area_tag},
 }};
 ''')
             else:
-                f.write(f'extern const Continent {continent_tag};\n')
+                f.write(f'extern const Area {area_tag};\n')
             f.write('\n')
 
         if define:
-            f.write('DEFINE_FSTR_VECTOR(continents, Continent')
-            for continent in zonetab.continents:
-                continent_tag = make_tag(continent.name)
-                f.write(f',\n  &{continent_tag}')
+            f.write('DEFINE_FSTR_VECTOR(areas, Area')
+            for area in zonetab.areas:
+                area_tag = make_tag(area.name)
+                f.write(f',\n  &{area_tag}')
             f.write(')\n')
         else:
-            f.write('DECLARE_FSTR_VECTOR(continents, Continent)\n')
+            f.write('DECLARE_FSTR_VECTOR(areas, Area)\n')
 
 
     with create_file(f'{filename}.h') as f:
@@ -327,7 +327,7 @@ struct Country: public Object<Country>
     const FSTR::Vector<TimeZone>* timezones;
 };
 
-struct Continent: public Object<Continent>
+struct Area: public Object<Area>
 {
     const FlashString* name;
     const FSTR::Vector<Country>* countries;
@@ -346,7 +346,7 @@ struct Continent: public Object<Continent>
 
 namespace TZ::Index
 {
-String Continent::caption() const
+String Area::caption() const
 {
     String s(*name);
     if(s == _F("America")) {
@@ -361,13 +361,15 @@ String Continent::caption() const
         f.write('} // namespace TZ::Index\n')
 
 
+TZDATA_PATH = '/stripe/sandboxes/tzdata/tzdb-2024a'
+
 def main():
     tzdata = TzData()
-    tzdata.load()
+    tzdata.load_full(TZDATA_PATH)
     write_tzdata(tzdata, 'tzdata')
 
     zonetab = ZoneTable()
-    zonetab.load(tzdata)
+    zonetab.load(tzdata, TZDATA_PATH)
     write_zonetab(zonetab, 'tzindex')
 
 
