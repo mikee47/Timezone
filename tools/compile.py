@@ -49,6 +49,7 @@ def write_tzdata(tzdata: TzData, year_from=YEAR_MIN, year_to=YEAR_MAX):
     Create separate .zi file for each area
 
     SPEC CHANGE: Put initial era (continuation data) onto separate line
+    SPEC CHANGE: Don't store area, it's the same for every entry in file
     """
     areas = set([x.area for x in (tzdata.zones + tzdata.links)])
     for area in areas:
@@ -56,13 +57,13 @@ def write_tzdata(tzdata: TzData, year_from=YEAR_MIN, year_to=YEAR_MAX):
             for zone in tzdata.zones:
                 if zone.area != area:
                     continue
-                f.write(f'Z {zone}\n')
+                f.write(f'Z {zone.location}\n')
                 for era in zone.eras:
                     if era.until.get_date() >= date(year_from, 1, 1):
                         f.write(f'{repr(era)}\n')
             for link in tzdata.links:
                 if link.area == area:
-                    f.write(f'L {link.zone.name} {link.name}\n')
+                    f.write(f'L {link.zone.name} {link.location}\n')
 
 
 
