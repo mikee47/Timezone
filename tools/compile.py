@@ -5,7 +5,7 @@
 #
 
 import os
-from tzinfo import TzData, ZoneTable, TimeOffset, Zone, Link, remove_accents, TzString
+from tzinfo import TzData, ZoneTable, TimeOffset, Zone, Link, remove_accents, TzString, YEAR_MIN, YEAR_MAX
 from datetime import date, datetime, timedelta, timezone
 
 OUTPUT_DIR = 'files'
@@ -31,16 +31,18 @@ def write_tzdata_full(tzdata: TzData):
             f.write(f'L {link.zone.name} {link.name}\n')
 
 
-def write_tzdata(tzdata: TzData):
+def write_tzdata(tzdata: TzData, year_from=YEAR_MIN, year_to=YEAR_MAX):
     """
     Put rules into separate files in the 'rules' directory
 
     SPEC CHANGE: Omit leading 'R' and name fields as these are the same for all entries
+    SPEC CHANGE: Filter pre-1970's rules
     """
     for name, rules in tzdata.rules.items():
-        with create_file(f'rules/{name}') as f:
-            for rule in rules:
-                f.write(f'{repr(rule)}\n')
+        filtered_rules = [r for r in rules if r.applies_to(year_from, year_to)]
+        if filtered_rules:
+            with create_file(f'rules/{name}') as f:
+                f.write("".join(f'{repr(r)}\n' for r in filtered_rules))
 
 
     """
@@ -56,7 +58,8 @@ def write_tzdata(tzdata: TzData):
                     continue
                 f.write(f'Z {zone}\n')
                 for era in zone.eras:
-                    f.write(f'{repr(era)}\n')
+                    if era.until.get_date() >= date(year_from, 1, 1):
+                        f.write(f'{repr(era)}\n')
             for link in tzdata.links:
                 if link.region == region:
                     f.write(f'L {link.zone.name} {link.name}\n')

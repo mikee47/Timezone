@@ -38,7 +38,7 @@ COUNTRYTAB_FILENAME = 'iso3166.tab'
 ZONETAB_FILENAME = 'zone1970.tab'
 
 # Values for 'min' and 'max' in data
-YEAR_MIN = 0
+YEAR_MIN = 1
 YEAR_MAX = 9999
 
 MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
