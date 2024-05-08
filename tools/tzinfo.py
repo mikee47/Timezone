@@ -23,54 +23,26 @@ COUNTRYTAB_PATH = ZONEINFO_PATH + '/iso3166.tab'
 # Zone descriptions
 ZONETAB_PATH = ZONEINFO_PATH + '/zone1970.tab'
 
-MONTH_NAMES = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-]
+# Values for 'min' and 'max' in data
+YEAR_MIN = 0
+YEAR_MAX = 9999
 
-DAY_NAMES = [
-    'Sun',
-    'Mon',
-    'Tue',
-    'Wed',
-    'Thu',
-    'Fri',
-    'Sat',
-]
+MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+MONTH_NAMES_BRIEF = ['Ja', 'F', 'Mar', 'Ap', 'May', 'Jun', 'Jul', 'Au', 'S', 'O', 'N', 'D']
+DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+DAY_NAMES_BRIEF = ['Su', 'M', 'Tu', 'W', 'Th', 'F', 'Sa']
 
 def match_name(values: list[str], name: str) -> str | None:
     for v in values:
         if v.startswith(name):
             return v
-    return None
+    raise ValueError(f'Unknown "{name}"')
 
-def match_month_name(name: str) -> str:
-    month = match_name(MONTH_NAMES, name)
-    if month:
-        return month
-    raise ValueError(f'Unknown month "{name}"')
-
-def get_month_number(name: str) -> int:
+def get_month_index(name: str) -> int:
     name = match_name(MONTH_NAMES, name)
-    return 1 + MONTH_NAMES.index(name)
+    return MONTH_NAMES.index(name)
 
-def match_day_name(name: str) -> str:
-    day = match_name(DAY_NAMES, name)
-    if day:
-        return day
-    raise ValueError(f'Unknown day "{name}"')
-
-def get_day_number(name: str) -> int:
+def get_day_index(name: str) -> int:
     name = match_name(DAY_NAMES, name)
     return DAY_NAMES.index(name)
 
@@ -102,10 +74,16 @@ class On:
     def __str__(self):
         return self.expr
 
+    def __repr__(self):
+        return self.expr
+
+    def __bool__(self):
+        return self.expr not in ['', '1']
+
     def get_date(self, year: int, month: str | int) -> date:
         """Get effective date for given year/month"""
         if isinstance(month, str):
-            month = get_month_number(month)
+            month = get_month_index(month) + 1
         value = self.expr
         if value[0].isdigit():
             # 5        the fifth of the month
@@ -114,7 +92,7 @@ class On:
         if value.startswith('last'):
             # lastSun  the last Sunday in the month
             # lastMon  the last Monday in the month
-            weekday = get_day_number(value[4:])
+            weekday = get_day_index(value[4:])
             day = calendar.monthrange(year, month)[1]
             want_prev = True
         else:
@@ -125,7 +103,7 @@ class On:
             # even if that Sunday occurs in November.
             weekday = re.match('[a-zA-Z]+', value)[0]
             tail = value[len(weekday):]
-            weekday = get_day_number(weekday)
+            weekday = get_day_index(weekday)
             day = int(tail[2:])
             if tail.startswith('>='):
                 want_prev = False
@@ -152,7 +130,7 @@ class At:
     hour: int = 0
     min: int = 0
     sec: int = 0
-    timefmt: str = ''
+    timefmt: str = 'w'
 
     def __init__(self, s: str = None):
         if s is None:
@@ -175,6 +153,20 @@ class At:
     def __str__(self):
         return f'{self.hour}:{self.min:02}:{self.sec:02}{self.timefmt}'
 
+    def __bool__(self):
+        return self.hour != 0 or self.min != 0 or self.sec != 0 or self.timefmt != 'w'
+
+    def __repr__(self):
+        s = str(self.hour)
+        if self.min or self.sec:
+            s += f':{self.min}'
+        if self.sec:
+            s += f':{self.sec}'
+        if self.timefmt != 'w':
+            s += self.timefmt
+        return s
+
+
     @property
     def delta(self):
         return timedelta(hours=self.hour, minutes=self.min, seconds=self.sec)
@@ -194,11 +186,17 @@ class TimeOffset:
         else:
             timefmt = None
         fields = s.split(':')
-        hours = int(fields.pop(0)) if fields else 0
+        s = fields.pop(0)
+        if s[0] == '-':
+            sign = -1
+            s = s[1:]
+        else:
+            sign = 1
+        hours = int(s);
         mins = int(fields.pop(0)) if fields else 0
         secs = int(fields.pop(0)) if fields else 0
-        seconds = timedelta(hours=abs(hours), minutes=mins, seconds=secs).total_seconds()
-        self.seconds = seconds if hours >= 0 else -seconds
+        seconds = (hours * 3600) + (mins * 60) + secs
+        self.seconds = seconds * sign
         self.is_dst = (timefmt == 'd') if timefmt else (seconds != 0)
 
     @property
@@ -209,6 +207,24 @@ class TimeOffset:
         delta = timedelta(seconds=abs(self.seconds))
         sign = '' if self.seconds >= 0 else '-'
         return f'{sign}{delta}'
+
+    def __repr__(self):
+        secs = self.seconds
+        if secs < 0:
+            sign = '-'
+            secs = -secs
+        else:
+            sign = ''
+        mins = secs // 60
+        hours = mins // 60
+        mins = mins % 60
+        secs = secs % 60
+        s = f'{sign}{hours}'
+        if mins or secs:
+            s += f':{mins}'
+        if secs:
+            s += f':{secs}'
+        return s
 
 
 @dataclass
@@ -224,7 +240,7 @@ class Until:
             self.year = int(fields.pop(0))
         if fields:
             # MONTH (Rule IN)
-            self.month = match_month_name(fields.pop(0))
+            self.month = match_name(MONTH_NAMES, fields.pop(0))
         if fields:
             # DAY (Rule ON)
             self.day = On(fields.pop(0))
@@ -243,9 +259,22 @@ class Until:
     def __str__(self):
         return f'{self.year}/{self.month}/{self.day} {str(self.at)}' if self else ''
 
+    def __repr__(self):
+        if self.year is None:
+            return ''
+        s = str(self.year)
+        mo = get_month_index(self.month)
+        if mo or self.day or self.at:
+            s += f' {MONTH_NAMES_BRIEF[mo]}'
+        if self.day or self.at:
+            s += f' {repr(self.day)}'
+        if self.at:
+            s += f' {repr(self.at)}'
+        return s
+
     def get_date(self) -> date:
         if not self:
-            return date(9999, 12, 31)
+            return date(YEAR_MAX, 12, 31)
         return self.day.get_date(self.year, self.month)
 
     def applies_to(self, d: date) -> bool:
@@ -318,7 +347,7 @@ class Rule:
     def __init__(self, fields: list[str]):
         from_ = fields.pop(0)
         if from_.startswith('mi'):
-            self.from_ = 0
+            self.from_ = YEAR_MIN
         else:
             self.from_ = int(from_)
 
@@ -326,14 +355,14 @@ class Rule:
         if to.startswith('o'):
             self.to = self.from_
         elif to.startswith('ma'):
-            self.to = 9999
+            self.to = YEAR_MAX
         else:
             self.to = int(to)
 
         # Unused
         _ = fields.pop(0)
 
-        self.in_ = match_month_name(fields.pop(0))
+        self.in_ = match_name(MONTH_NAMES, fields.pop(0))
         self.on = On(fields.pop(0))
         self.at = At(fields.pop(0))
         self.save = TimeOffset(fields.pop(0))
@@ -341,6 +370,15 @@ class Rule:
 
     def __str__(self):
         return f'{self.from_} {self.to} - {self.in_} {self.on} {self.at} {self.save} {self.letters}'
+
+    def __repr__(self):
+        from_ = 'mi' if self.from_ == YEAR_MIN else self.from_
+        to = 'o' if self.to == self.from_ else 'ma' if self.to == YEAR_MAX else self.to
+        in_ = MONTH_NAMES_BRIEF[get_month_index(self.in_)]
+        at = repr(self.at)
+        save = repr(self.save)
+        return f'{from_} {to} - {in_} {self.on} {at} {save} {self.letters}'
+
 
     def applies_to(self, year_from: int, year_to: int = None) -> bool:
         if year_from is None:
@@ -384,6 +422,12 @@ class Era:
         s = f'{self.stdoff} {self.rule} {self.format}'
         if self.until:
             s += f' {self.until}'
+        return s
+
+    def __repr__(self):
+        s = f'{repr(self.stdoff)} {self.rule} {self.format}'
+        if self.until:
+            s += f' {repr(self.until)}'
         return s
 
     def applies_to(self, d: date) -> bool:

@@ -8,7 +8,24 @@ import os
 from tzinfo import TzData, ZoneTable, TimeOffset, Zone, Link, remove_accents, TzString
 from datetime import date, datetime, timedelta, timezone
 
-def write_zonetab(zonetab, output_path: str):
+def write_tzdata(tzdata: TzData, filename: str):
+    """
+    Expand all rules inside zone descriptions, see what file size looks like
+    """
+    with open(filename, 'w') as f:
+        for name, rules in tzdata.rules.items():
+            for rule in rules:
+                f.write(f'R {name} {repr(rule)}\n')
+        for zone in tzdata.zones:
+            f.write(f'Z {zone} ')
+            for era in zone.eras:
+                f.write(f'{repr(era)}\n')
+        for link in tzdata.links:
+            f.write(f'L {link.zone.name} {link.name}\n')
+
+
+
+def write_zonetab(zonetab: ZoneTable, output_path: str):
     """
     The two main output files are `countries` and `timezones`.
     These are compact versions of iso3166.tab and zone1970.tab.
@@ -47,6 +64,7 @@ def write_zonetab(zonetab, output_path: str):
 def main():
     tzdata = TzData()
     tzdata.load()
+    write_tzdata(tzdata, 'files/tzdata.zi')
 
     zonetab = ZoneTable()
     zonetab.load(tzdata)
