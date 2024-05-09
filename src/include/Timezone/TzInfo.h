@@ -230,3 +230,70 @@ struct RuleRecord : public CsvRecord {
 		return n;
 	}
 };
+
+/**
+ * @brief to2050.tzs record
+ *
+ * Contains output from `zdump -i -c 2050` which we can use to verify code.
+ */
+struct TzsRecord {
+	enum ColumnIndex {
+		col_date,
+		col_time,
+		col_interval,
+		col_tag,
+		col_isdst,
+	};
+
+	const CStringArray& row;
+
+	TzsRecord(const TzInfoRecord& rec) : row(rec.row)
+	{
+	}
+
+	TzData::Date date() const
+	{
+		auto s = row[col_date];
+		if(!s || *s == '-') {
+			return {};
+		}
+		DateTime dt;
+		dt.fromISO8601(s);
+		return {dt.Year, TzData::Month(dt.Month), dt.Day};
+	}
+
+	TzData::At time() const
+	{
+		auto s = row[col_time];
+		return s && *s != '-' ? s : nullptr;
+	}
+
+	DateTime datetime() const
+	{
+		String buf;
+		auto s = row[col_date];
+		if(s && *s != '-') {
+			buf += s;
+		}
+		buf += 'T';
+		buf += String(time());
+		DateTime dt;
+		dt.fromISO8601(buf);
+		return dt;
+	}
+
+	TzData::TimeOffset interval() const
+	{
+		return TzData::TimeOffset(row[col_interval]);
+	}
+
+	const char* tag() const
+	{
+		return row[col_tag];
+	}
+
+	const char* isdst() const
+	{
+		return row[col_isdst];
+	}
+};

@@ -116,6 +116,35 @@ void printTzInfo(const String& name)
 	}
 }
 
+void verifyData()
+{
+	auto reftable = std::make_unique<CsvTable<TzInfoRecord>>(new FileStream("to2050.tzs"), '\t', "", 256);
+	String zone;
+	for(auto rec : *reftable) {
+		if(rec.type() == TzInfoRecord::Type::link) {
+			continue;
+		}
+		if(rec.row.startsWith("TZ")) {
+			if(zone) {
+				// break;
+			}
+			auto s = rec.row[0];
+			s += 4;
+			zone.setString(s, strlen(s) - 1);
+			Serial << zone << endl;
+			continue;
+		}
+		// Serial << rec.row.join(" ") << endl;
+		TzsRecord tzs(rec);
+		auto dt = tzs.datetime();
+		if(dt) {
+			Serial << "  " << tzs.datetime().format(_F("%d %b %Y %H:%M:%S")) << " " << String(tzs.interval()) << " "
+				   << tzs.tag() << endl;
+		}
+		// Serial << String(tzs.time()) << endl;
+	}
+}
+
 void showRootMenu();
 
 void zoneSelected(String name)
@@ -265,7 +294,6 @@ void listTimezones()
 	for(auto zone : *zonetab) {
 		Serial << String(zone.name()).padRight(40) << zone.caption() << endl;
 	}
-	showRootMenu();
 }
 
 void listCountriesByTimezone()
@@ -296,8 +324,6 @@ void listCountriesByTimezone()
 			Serial << endl;
 		}
 	}
-
-	showRootMenu();
 }
 
 void printFile(const String& filename)
@@ -325,8 +351,18 @@ void showRootMenu()
 
 	menu.additem(F("Enter timezone"), enterTimezone);
 	menu.additem(F("Select by area"), selectArea);
-	menu.additem(F("List timezones"), listTimezones);
-	menu.additem(F("List countries by timezone"), listCountriesByTimezone);
+	menu.additem(F("List timezones"), []() {
+		listTimezones();
+		showRootMenu();
+	});
+	menu.additem(F("List countries by timezone"), []() {
+		listCountriesByTimezone();
+		showRootMenu();
+	});
+	menu.additem(F("Verify vs. to2050.tzs"), []() {
+		verifyData();
+		showRootMenu();
+	});
 	menu.additem(F("Scan all files"), []() {
 		OneShotFastMs timer;
 		Directory dir;
