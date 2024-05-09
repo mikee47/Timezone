@@ -551,6 +551,14 @@ class TzData:
         self.links.append(link)
 
     def load(self, filename: str):
+        """If a directory name is given then the primary source files are loaded.
+        Where a file is given that file is parsed and loaded.
+        """
+        if os.path.isdir(filename):
+            for name in TZDATA_FILE_LIST:
+                self.load(os.path.join(filename, name))
+            return
+
         zone = None
         for line in open(filename):
             line = line.strip()
@@ -576,19 +584,6 @@ class TzData:
         for link in self.links:
             if isinstance(link.zone, str):
                 link.zone = next(z for z in self.zones if z.name == link.zone)
-
-
-    def load_compact(self, tzdata_path: str):
-        """Load the single-file compact version of the database
-        """
-        self.load(os.path.join(tzdata_path, TZDATA_ZI))
-
-    def load_full(self, tzdata_path: str):
-        """Load the full version of the database
-        Main advantage of this is that rule names are human-readable.
-        """
-        for name in TZDATA_FILE_LIST:
-            self.load(os.path.join(tzdata_path, name))
 
 
 @dataclass

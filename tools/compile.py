@@ -58,6 +58,9 @@ def write_tzdata(tzdata: TzData):
     areas = set([x.area for x in (tzdata.zones + tzdata.links)])
     for area in areas:
         with create_file(f'{area or "default"}.zi') as f:
+            for link in tzdata.links:
+                if link.area == area:
+                    f.write(f'L {link.zone.name} {link.location}\n')
             for zone in tzdata.zones:
                 if zone.area != area:
                     continue
@@ -65,9 +68,6 @@ def write_tzdata(tzdata: TzData):
                 for era in zone.eras:
                     if era.until.get_date() >= date(year_from, 1, 1):
                         f.write(f'{repr(era)}\n')
-            for link in tzdata.links:
-                if link.area == area:
-                    f.write(f'L {link.zone.name} {link.location}\n')
 
 
 
@@ -193,16 +193,17 @@ def main():
     output_dir = args.dest
 
     tzdata = TzData()
-    tzdata.load_full(args.source)
+    tzdata.load(args.source)
 
     if args.compare:
         prev = TzData()
-        prev.load_full(args.compare)
+        prev.load(args.compare)
         tzdata = compare_tzdata(prev, tzdata)
         write_tzdata(tzdata)
-    else:
-        write_tzdata(tzdata)
+        return
 
+    write_tzdata(tzdata)
+    if os.path.isdir(args.source):
         zonetab = ZoneTable()
         zonetab.load(tzdata, args.source)
         write_zonetab(zonetab)
