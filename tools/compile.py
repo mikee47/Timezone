@@ -10,6 +10,9 @@ from datetime import date, datetime, timedelta, timezone
 from argparse import ArgumentParser
 
 output_dir = 'files'
+year_from = YEAR_MIN
+year_to = YEAR_MAX
+
 
 def create_file(name: str):
     filename = os.path.join(output_dir, name)
@@ -18,7 +21,7 @@ def create_file(name: str):
     return open(filename, 'w')
 
 
-def write_tzdata_full(tzdata: TzData, output_dir: str):
+def write_tzdata_full(tzdata: TzData):
     """For checking against original tzdata.zi file"""
     with create_file('tzdata.zi') as f:
         for name, rules in tzdata.rules.items():
@@ -32,7 +35,7 @@ def write_tzdata_full(tzdata: TzData, output_dir: str):
             f.write(f'L {link.zone.name} {link.name}\n')
 
 
-def write_tzdata(tzdata: TzData, year_from=YEAR_MIN, year_to=YEAR_MAX):
+def write_tzdata(tzdata: TzData):
     """
     Put rules into separate files in the 'rules' directory
 
@@ -100,11 +103,90 @@ def write_zonetab(zonetab: ZoneTable):
             f.write(f'{c.code}\t{c.name}\n')
 
 
+def compare_tzdata(old: TzData, new: TzData) -> TzData:
+    """Return a TzData object containing only updated information
+    Applications would store this in a writeable filesystem 'updates' directory
+    and check before the base version.
+    """
+
+    # TODO: Apply year filter to dataset
+
+
+    # @dataclass
+    # class Stat:
+    #     values: list = None
+    #     count: int = 0
+
+    tzupdate = TzData()
+
+    # Scan rules
+    rules_deleted = []
+    deleted_rule_size = 0
+    rules_changed = []
+    changed_rule_size = 0
+    for name, old_rules in old.rules.items():
+        new_rules = new.rules.get(name)
+        if not new_rules:
+            print(f'Rules "{name}" deleted')
+            rules_deleted.append(old_rules)
+            deleted_rule_size += len(old_data)
+        old_data = repr(old_rules)
+        new_data = repr(new_rules)
+        if new_data == old_data:
+            continue
+        print(f'Rules "{name}" changed, {len(new_data)} bytes')
+        tzupdate.rules[name] = new_rules
+        rules_changed.append(new_rules)
+        changed_rule_size += len(new_data)
+    rules_added = []
+    added_rule_size = 0
+    for name, new_rules in new.rules.items():
+        if name in old.rules:
+            continue
+        new_data = repr(new_rules)
+        print(f'Rules "{name}" added, {len(new_data)} bytes')
+        tzupdate.rules[name] = new_rules
+        rules_added.append(new_rules)
+        added_rule_size += len(new_data)
+
+    # Scan zones
+    zones_deleted = []
+    deleted_zone_size = 0
+    zones_changed = []
+    changed_zone_size = 0
+    zones_added = []
+    for zone in old.zones:
+        old_data = repr(zone.eras)
+        try:
+            new_zone = next(z for z in new.zones if z == zone)
+        except StopIteration:
+            print(f'Zone "{zone}" deleted')
+            zones_deleted.append(zone)
+            deleted_zone_size += len(old_data)
+            continue
+        new_data = repr(new_zone.eras)
+        if old_data == new_data:
+            continue
+        print(f'Zone "{zone}" changed, {len(new_data)}, bytes')
+        tzupdate.zones.append(new_zone)
+        zones_changed.append(new_zone)
+        changed_zone_size += len(new_data)
+
+    print('Change summary:')
+    print(f'  {len(zones_deleted)} zones deleted, {deleted_zone_size} bytes could be released')
+    print(f'  {len(rules_deleted)} rules deleted, {deleted_rule_size} bytes could be released')
+    print(f'  {len(zones_changed)} zones changed, {changed_zone_size} bytes required')
+    print(f'  {len(rules_changed)} rules changed, {changed_rule_size} bytes required')
+    print(f'  {len(rules_added)} rules added, {added_rule_size} bytes required')
+
+    return tzupdate
+
 
 def main():
     parser = ArgumentParser(description='IANA database compiler')
     parser.add_argument('source', help='Path to TZ Database source')
     parser.add_argument('dest', help='Directory to write output files')
+    parser.add_argument('--compare', help='Directory to write output files')
     args = parser.parse_args()
 
     global output_dir
@@ -112,11 +194,18 @@ def main():
 
     tzdata = TzData()
     tzdata.load_full(args.source)
-    write_tzdata(tzdata)
 
-    zonetab = ZoneTable()
-    zonetab.load(tzdata, args.source)
-    write_zonetab(zonetab)
+    if args.compare:
+        prev = TzData()
+        prev.load_full(args.compare)
+        tzdata = compare_tzdata(prev, tzdata)
+        write_tzdata(tzdata)
+    else:
+        write_tzdata(tzdata)
+
+        zonetab = ZoneTable()
+        zonetab.load(tzdata, args.source)
+        write_zonetab(zonetab)
 
 
 if __name__ == '__main__':

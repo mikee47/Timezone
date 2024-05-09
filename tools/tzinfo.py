@@ -483,9 +483,15 @@ class NamedItem:
     def __str__(self):
         return self.name
 
+    def __eq__(self, other):
+        return self.name == (other if isinstance(other, str) else other.name)
+
     def __lt__(self, other):
         return self.name < str(other)
 
+
+@dataclass(eq=False)
+class ZoneOrLink(NamedItem):
     @property
     def area(self) -> str:
         a, _, b = self.name.partition('/')
@@ -497,14 +503,14 @@ class NamedItem:
         return b or a
 
 
-@dataclass
-class Zone(NamedItem):
+@dataclass(eq=False)
+class Zone(ZoneOrLink):
     tzstr: str
     eras: list[Era]
 
 
-@dataclass
-class Link(NamedItem):
+@dataclass(eq=False)
+class Link(ZoneOrLink):
     zone: Zone
 
 
@@ -605,9 +611,8 @@ class TimeZone:
 
 
 @dataclass
-class Country:
+class Country(NamedItem):
     code: str
-    name: str
     timezones: list[TimeZone] = None
 
     @property
@@ -616,8 +621,7 @@ class Country:
 
 
 @dataclass
-class Area:
-    name: str
+class Area(NamedItem):
     countries: list[Country]
 
     @property
@@ -630,9 +634,6 @@ class Area:
             return f'{name} Ocean'
         return name
 
-
-    def __eq__(self, other):
-        return self.name == (other if isinstance(other, str) else other.name)
 
 
 @dataclass
@@ -648,7 +649,7 @@ class ZoneTable:
             if line.startswith('#'):
                 continue
             code, _, name = line.strip().partition('\t')
-            countries.append(Country(code, name))
+            countries.append(Country(name, code))
         def country_key(c):
             return c.sort_key
         self.countries = sorted(countries, key=country_key)
