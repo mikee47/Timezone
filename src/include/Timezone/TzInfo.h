@@ -2,6 +2,7 @@
 
 #include "CsvTable.h"
 #include "TzData.h"
+#include <WVector.h>
 
 /**
  * @brief Base type for reading .zi records
@@ -248,11 +249,13 @@ public:
 
 	// private:
 	void scanZone();
+	TzData::Rule* loadRule(const char* name);
 
 	using ZoneTable = CsvTable<TzInfoRecord>;
 	std::unique_ptr<ZoneTable> zoneTable;
 	String currentArea;
 	TzData::TimeZone timezone;
+	Vector<TzData::Rule> rules;
 };
 
 /**

@@ -2,6 +2,7 @@
 
 #include <WString.h>
 #include <DateTime.h>
+#include <Print.h>
 #include <memory>
 
 namespace TzData
@@ -183,29 +184,42 @@ static_assert(sizeof(TimeOffset) == 4);
 static_assert(sizeof(StrPtr) == 1);
 
 struct Rule {
-	Year from;
-	Year to;
-	Month in;
-	On on;
-	At at;
-	TimeOffset save;
-	StrPtr letters;
-};
+	struct Line {
+		Year from;
+		Year to;
+		Month in;
+		On on;
+		At at;
+		TimeOffset save;
+		StrPtr letters;
 
-static_assert(sizeof(Rule) == 20);
+		explicit operator String() const;
+	};
+	static_assert(sizeof(Line) == 20);
+
+	String name;
+	std::unique_ptr<Line[]> lines;
+	uint16_t numLines;
+
+	Rule(const char* name, uint16_t numLines) : name(name), lines(new Line[numLines]), numLines(numLines)
+	{
+	}
+
+	bool operator==(const char* str) const
+	{
+		return name == str;
+	}
+};
 
 struct Era {
 	TimeOffset stdoff;
 	Until until;
 	StrPtr format;
-	bool hasRule;
-	union {
-		Rule* rule;
-		int dstoff;
-	};
+	Rule* rule{};
+	TimeOffset dstoff;
 };
 
-static_assert(sizeof(Era) == 20);
+static_assert(sizeof(Era) == 24);
 
 struct TimeZone {
 	String name;

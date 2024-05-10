@@ -231,6 +231,7 @@ References
 - `Theory and pragmatics of the tz code and data <https://data.iana.org/time-zones/theory.html>`__
 - Current text timezone database `tzdata.zi<https://data.iana.org/time-zones/data/tzdata.zi>`
 - `LLVM Time Zone Support <https://libcxx.llvm.org/DesignDocs/TimeZone.html>`__
+- `PEP 495 – Local Time Disambiguation <https://peps.python.org/pep-0495/>`__
 
 
 API Documentation

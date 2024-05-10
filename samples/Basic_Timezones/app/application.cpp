@@ -64,6 +64,35 @@ void printTzInfo(const String& name)
 	}
 
 	TzData::Year yearFrom{};
+	auto& tz = db.timezone;
+	for(unsigned i = 0; i < tz.numEras; ++i) {
+		auto& era = tz.eras[i];
+		if(era.until) {
+			Serial << "Until " << String(era.until);
+		} else {
+			Serial << "From " << yearFrom;
+		}
+		Serial << " stdoff " << String(era.stdoff);
+		if(era.rule) {
+			Serial << ", rule " << era.rule->name << endl;
+			for(unsigned i = 0; i < era.rule->numLines; ++i) {
+				auto& line = era.rule->lines[i];
+				if(line.to < yearFrom) {
+					continue;
+				}
+				if(line.from > era.until.year) {
+					break;
+				}
+				Serial << "  " << String(era.rule->lines[i]) << endl;
+			}
+			yearFrom = era.until.year;
+		} else {
+			Serial << ", dstoff " << String(era.dstoff) << endl;
+		}
+	}
+
+#if 0
+	TzData::Year yearFrom{};
 	while(auto rec = db.zoneTable->next()) {
 		if(rec.type() != TzInfoRecord::Type::era) {
 			break;
@@ -85,8 +114,9 @@ void printTzInfo(const String& name)
 		if(ruleKind == EraRecord::RuleKind::rule) {
 			showRule(era.rule(), yearFrom, until.year);
 		}
-		yearFrom = until.year + 1;
+		yearFrom = until.year;
 	}
+#endif
 }
 
 void verifyData()

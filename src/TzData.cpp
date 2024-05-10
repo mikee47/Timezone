@@ -248,4 +248,23 @@ TimeOffset::operator String() const
 	return buf;
 }
 
+Rule::Line::operator String() const
+{
+	String s;
+	s += String(from);
+	s += ' ';
+	s += String(to);
+	s += ' ';
+	s += String(in);
+	s += ' ';
+	s += String(on);
+	s += ' ';
+	s += String(at);
+	s += ' ';
+	s += String(save);
+	s += " #";
+	s += String(letters);
+	return s;
+}
+
 } // namespace TzData

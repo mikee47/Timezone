@@ -97,11 +97,36 @@ void ZoneData::scanZone()
 		era.until = er.until();
 		auto rule = er.rule();
 		if(rule && *rule != '-') {
-			era.hasRule = true;
-			// TODO: Find rule, add to list
+			era.rule = loadRule(rule);
 		} else {
-			era.hasRule = false;
-			era.dstoff = TzData::TimeOffset(rule).seconds;
+			era.dstoff = TzData::TimeOffset(rule);
 		}
 	}
+}
+
+TzData::Rule* ZoneData::loadRule(const char* name)
+{
+	int i = rules.indexOf(name);
+	if(i >= 0) {
+		return &rules[i];
+	}
+
+	auto table = std::make_unique<CsvTable<RuleRecord>>(new FileStream(F("rules/") + name), ' ', "", 64);
+	uint16_t count{0};
+	for(auto rec : *table) {
+		++count;
+	}
+
+	auto rule = new TzData::Rule(name, count);
+	table->reset();
+	for(unsigned i = 0; i < count; ++i) {
+		auto rec = table->next();
+		RuleRecord r(rec);
+		TzData::StrPtr letterptr = 0; // TODO
+		rule->lines[i] = {r.from(), r.to(), r.in(), r.on(), r.at(), r.save(), letterptr};
+	}
+
+	rules.addElement(rule);
+
+	return rule;
 }
