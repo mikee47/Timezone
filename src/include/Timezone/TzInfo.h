@@ -86,29 +86,29 @@ struct EraRecord {
 		return row[col_format];
 	}
 
-	const char* year() const
+	TzData::Year year() const
 	{
-		return row[col_year];
+		return TzData::Year(row[col_year], TzData::Year::max);
 	}
 
-	const char* month() const
+	TzData::Month month() const
 	{
 		return row[col_month];
 	}
 
-	const char* day() const
+	TzData::On day() const
 	{
 		return row[col_day];
 	}
 
-	const char* time() const
+	TzData::At time() const
 	{
 		return row[col_time];
 	}
 
 	TzData::Until until() const
 	{
-		return {year(), month(), day(), time()};
+		return {row[col_year], row[col_month], row[col_day], row[col_time]};
 	}
 
 	enum class RuleKind {
@@ -229,6 +229,30 @@ struct RuleRecord : public CsvRecord {
 		n += p.print(letters());
 		return n;
 	}
+};
+
+class ZoneData
+{
+public:
+	// Locate zone in table, return matched name
+	String findZone(const String& name, bool includeLinks = true);
+
+	static void normalize(String& name);
+
+	static String normalize(const String& name)
+	{
+		String s = name;
+		normalize(s);
+		return s;
+	}
+
+	// private:
+	void scanZone();
+
+	using ZoneTable = CsvTable<TzInfoRecord>;
+	std::unique_ptr<ZoneTable> zoneTable;
+	String currentArea;
+	TzData::TimeZone timezone;
 };
 
 /**

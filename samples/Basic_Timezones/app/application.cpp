@@ -52,67 +52,40 @@ void printTzInfo(const String& name)
 		}
 	};
 
-	String area;
-	String location;
-	int i = name.lastIndexOf('/');
-	if(i < 0) {
-		area = F("default");
-		location = name;
-	} else {
-		area = name.substring(0, i);
-		location = name.substring(i + 1);
+	ZoneData db;
+	String zone = db.findZone(name);
+	if(!zone) {
+		Serial << _F("Zone ") << name << _F(" not found") << endl;
+		return;
 	}
-	auto zoneInfo = std::make_unique<CsvTable<TzInfoRecord>>(new FileStream(area + ".zi"), ' ', "", 64);
+
+	if(zone != name) {
+		Serial << '"' << name << _F("\" -> ") << zone << endl;
+	}
+
 	TzData::Year yearFrom{};
-	bool found{false};
-	for(auto rec : *zoneInfo) {
-		switch(rec.type()) {
-		case TzInfoRecord::Type::zone: {
-			if(found) {
-				return;
-			}
-			ZoneRecord zone(rec);
-			found = (location == zone.location());
+	while(auto rec = db.zoneTable->next()) {
+		if(rec.type() != TzInfoRecord::Type::era) {
 			break;
 		}
-		case TzInfoRecord::Type::link: {
-			LinkRecord link(rec);
-			if(found) {
-				return;
-			}
-			if(location == link.location()) {
-				Serial << _F("Link ") << link.location() << " -> " << link.zone() << endl;
-				return;
-			}
-			break;
+		EraRecord era(rec);
+		auto until = era.until();
+		if(until) {
+			Serial << "Until " << String(until);
+		} else {
+			Serial << "From " << yearFrom;
 		}
-		case TzInfoRecord::Type::era: {
-			if(!found) {
-				break;
-			}
-			EraRecord era(rec);
-			auto until = era.until();
-			if(until) {
-				Serial << "Until " << String(until);
-			} else {
-				Serial << "From " << yearFrom;
-			}
-			Serial << " stdoff " << String(era.stdoff());
-			auto ruleKind = era.ruleKind();
-			if(ruleKind == EraRecord::RuleKind::time) {
-				TzData::TimeOffset time(era.rule());
-				Serial << ", dstoff " << String(time);
-			}
-			Serial << endl << "  " << era.row.join(" ") << endl;
-			if(ruleKind == EraRecord::RuleKind::rule) {
-				showRule(era.rule(), yearFrom, until.year);
-			}
-			yearFrom = until.year + 1;
-			break;
+		Serial << " stdoff " << String(era.stdoff());
+		auto ruleKind = era.ruleKind();
+		if(ruleKind == EraRecord::RuleKind::time) {
+			TzData::TimeOffset time(era.rule());
+			Serial << ", dstoff " << String(time);
 		}
-		case TzInfoRecord::Type::invalid:
-			break;
+		Serial << endl << "  " << era.row.join(" ") << endl;
+		if(ruleKind == EraRecord::RuleKind::rule) {
+			showRule(era.rule(), yearFrom, until.year);
 		}
+		yearFrom = until.year + 1;
 	}
 }
 
@@ -131,7 +104,14 @@ void verifyData()
 			auto s = rec.row[0];
 			s += 4;
 			zone.setString(s, strlen(s) - 1);
-			Serial << zone << endl;
+			if(zone == F("Europe/London")) {
+				Serial << zone << endl;
+			} else {
+				zone = nullptr;
+			}
+			continue;
+		}
+		if(!zone) {
 			continue;
 		}
 		// Serial << rec.row.join(" ") << endl;
@@ -143,6 +123,18 @@ void verifyData()
 		}
 		// Serial << String(tzs.time()) << endl;
 	}
+}
+
+/**
+ * @brief Determine when the next transition is
+ * @param fromTimeUtc
+ * @param zoneName
+ * @retval time_t UTC for next transition such that 0 < t <= 9999-12-31Z
+ *
+ * If zone cannot be found or there are no future transitions then maximum value is returned.
+ */
+time_t getNextTransition(time_t fromTimeUtc, const String& zoneName)
+{
 }
 
 void showRootMenu();
@@ -244,6 +236,8 @@ void enterTimezone()
 	};
 
 	auto submitCallback = [](String& line) -> void {
+		zoneSelected(line);
+		return;
 		// Accept abbreviated form if it matches exactly one timezone
 		auto zonetab = openZoneTable();
 		ZoneFilter filter(*zonetab, true);

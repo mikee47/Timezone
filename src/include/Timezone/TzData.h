@@ -6,7 +6,10 @@
 
 namespace TzData
 {
-using StrPtr = const char*; ///< Point to shared string memory, could be stored as offset or index in file
+/**
+ * @brief Index or pointer to shared string memory
+ */
+using StrPtr = uint8_t;
 
 struct Year {
 	static constexpr uint16_t min{0};
@@ -177,7 +180,7 @@ static_assert(sizeof(On) == 3);
 static_assert(sizeof(At) == 4);
 static_assert(sizeof(Until) == 10);
 static_assert(sizeof(TimeOffset) == 4);
-static_assert(sizeof(StrPtr) == 4);
+static_assert(sizeof(StrPtr) == 1);
 
 struct Rule {
 	Year from;
@@ -193,16 +196,21 @@ static_assert(sizeof(Rule) == 20);
 
 struct Era {
 	TimeOffset stdoff;
-	Rule* rule;
-	StrPtr format;
 	Until until;
+	StrPtr format;
+	bool hasRule;
+	union {
+		Rule* rule;
+		int dstoff;
+	};
 };
 
-static_assert(sizeof(Era) == 24);
+static_assert(sizeof(Era) == 20);
 
 struct TimeZone {
-	StrPtr name;
+	String name;
 	std::unique_ptr<Era[]> eras;
+	unsigned numEras{0};
 };
 
 } // namespace TzData
