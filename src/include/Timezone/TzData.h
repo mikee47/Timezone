@@ -45,7 +45,7 @@ struct Month {
 	{
 	}
 
-	explicit constexpr Month(unsigned value) : value(static_cast<dtMonth_t>(value))
+	constexpr Month(unsigned value) : value(static_cast<dtMonth_t>(value))
 	{
 	}
 
@@ -56,7 +56,7 @@ struct Month {
 		return dtMonth_t(value);
 	}
 
-	explicit operator String() const
+	operator String() const
 	{
 		return DateTime::getIsoMonthName(value);
 	}
@@ -84,7 +84,7 @@ struct DayOfWeek {
 		return dtDays_t(value);
 	}
 
-	explicit operator String() const
+	operator String() const
 	{
 		return DateTime::getIsoDayName(value);
 	}
@@ -113,7 +113,7 @@ struct On {
 
 	On(const char* s);
 
-	explicit operator String() const;
+	operator String() const;
 
 	Date getDate(Year year, Month month) const;
 };
@@ -136,7 +136,7 @@ struct At {
 
 	At(const char* s);
 
-	explicit operator String() const;
+	operator String() const;
 };
 
 struct Until {
@@ -159,7 +159,7 @@ struct Until {
 		return year != 0;
 	}
 
-	explicit operator String() const;
+	operator String() const;
 };
 
 struct TimeOffset {
@@ -172,7 +172,7 @@ struct TimeOffset {
 
 	TimeOffset(const char* s);
 
-	explicit operator String() const;
+	operator String() const;
 };
 
 static_assert(sizeof(Year) == 2);
