@@ -6,6 +6,12 @@
 #include <Timezone/ZoneTable.h>
 #include <Timezone/TzInfo.h>
 
+// #define ENABLE_MALLOC_COUNT
+
+#ifdef ENABLE_MALLOC_COUNT
+#include <malloc_count.h>
+#endif
+
 namespace
 {
 Menu menu(Serial);
@@ -376,6 +382,18 @@ void printFile(const String& filename)
 		   << endl;
 }
 
+#ifdef ENABLE_MALLOC_COUNT
+void printHeap()
+{
+	Serial << _F("Heap statistics") << endl;
+	Serial << _F("  Free bytes:  ") << system_get_free_heap_size() << endl;
+	Serial << _F("  Used:        ") << MallocCount::getCurrent() << endl;
+	Serial << _F("  Peak used:   ") << MallocCount::getPeak() << endl;
+	Serial << _F("  Allocations: ") << MallocCount::getAllocCount() << endl;
+	Serial << _F("  Total used:  ") << MallocCount::getTotal() << endl;
+}
+#endif
+
 void showRootMenu()
 {
 	menu.begin(F("Main menu"));
@@ -384,7 +402,10 @@ void showRootMenu()
 	menu.additem(F("Enter timezone"), enterTimezone);
 	menu.additem(F("Select by area"), selectArea);
 	menu.additem(F("List timezones"), []() {
+		CpuCycleTimer timer;
 		listTimezones();
+		auto elapsed = timer.elapsedTicks();
+		Serial << F("Elapsed ") << elapsed << F(" ticks") << endl;
 		showRootMenu();
 	});
 	menu.additem(F("List countries by timezone"), []() {
@@ -407,6 +428,12 @@ void showRootMenu()
 		Serial << _F("Scan took ") << elapsed.toString() << endl;
 		showRootMenu();
 	});
+#ifdef ENABLE_MALLOC_COUNT
+	menu.additem(F("Print heap"), []() {
+		printHeap();
+		showRootMenu();
+	});
+#endif
 	menu.end();
 }
 
