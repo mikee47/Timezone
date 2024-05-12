@@ -83,7 +83,7 @@ void printTzInfo(const String& name)
 				if(line.from > era.until.year) {
 					break;
 				}
-				Serial << "  " << String(era.rule->lines[i]) << endl;
+				Serial << "  " << String(line) << endl;
 			}
 			yearFrom = era.until.year;
 		} else {
