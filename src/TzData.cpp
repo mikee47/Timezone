@@ -248,7 +248,7 @@ TimeOffset::operator String() const
 	return buf;
 }
 
-Rule::Line::operator String() const
+String Rule::Line::toString(const CStringArray& strings) const
 {
 	String s;
 	s += String(from);
@@ -262,8 +262,8 @@ Rule::Line::operator String() const
 	s += String(at);
 	s += ' ';
 	s += String(save);
-	s += " #";
-	s += String(letters);
+	s += ' ';
+	s += strings[this->letters];
 	return s;
 }
 

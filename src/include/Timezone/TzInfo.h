@@ -249,6 +249,9 @@ public:
 
 	// private:
 	void scanZone();
+
+	TzData::StrPtr getStrPtr(const char* str);
+
 	TzData::Rule* loadRule(const char* name);
 
 	using ZoneTable = CsvTable<TzInfoRecord>;
@@ -256,6 +259,7 @@ public:
 	String currentArea;
 	TzData::TimeZone timezone;
 	Vector<TzData::Rule> rules;
+	CStringArray strings;
 };
 
 /**

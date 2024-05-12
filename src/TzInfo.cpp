@@ -95,6 +95,7 @@ void ZoneData::scanZone()
 
 		era.stdoff = er.stdoff();
 		era.until = er.until();
+		era.format = getStrPtr(er.format());
 		auto rule = er.rule();
 		if(rule && *rule != '-') {
 			era.rule = loadRule(rule);
@@ -102,6 +103,16 @@ void ZoneData::scanZone()
 			era.dstoff = TzData::TimeOffset(rule);
 		}
 	}
+}
+
+TzData::StrPtr ZoneData::getStrPtr(const char* str)
+{
+	int i = strings.indexOf(str);
+	if(i < 0) {
+		i = strings.count();
+		strings.add(str);
+	}
+	return unsigned(i);
 }
 
 TzData::Rule* ZoneData::loadRule(const char* name)
@@ -122,8 +133,7 @@ TzData::Rule* ZoneData::loadRule(const char* name)
 	for(unsigned i = 0; i < count; ++i) {
 		auto rec = table->next();
 		RuleRecord r(rec);
-		TzData::StrPtr letterptr = 0; // TODO
-		rule->lines[i] = {r.from(), r.to(), r.in(), r.on(), r.at(), r.save(), letterptr};
+		rule->lines[i] = {r.from(), r.to(), r.in(), r.on(), r.at(), r.save(), getStrPtr(r.letters())};
 	}
 
 	rules.addElement(rule);

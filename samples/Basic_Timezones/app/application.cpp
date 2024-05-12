@@ -52,6 +52,8 @@ void printTzInfo(const String& name)
 		}
 	};
 
+	auto heap = system_get_free_heap_size();
+
 	ZoneData db;
 	String zone = db.findZone(name);
 	if(!zone) {
@@ -72,7 +74,7 @@ void printTzInfo(const String& name)
 		} else {
 			Serial << "From " << yearFrom;
 		}
-		Serial << " stdoff " << String(era.stdoff);
+		Serial << " stdoff " << String(era.stdoff) << " " << db.strings[era.format];
 		if(era.rule) {
 			Serial << ", rule " << era.rule->name << endl;
 			for(unsigned i = 0; i < era.rule->numLines; ++i) {
@@ -83,13 +85,19 @@ void printTzInfo(const String& name)
 				if(line.from > era.until.year) {
 					break;
 				}
-				Serial << "  " << String(line) << endl;
+				Serial << "  " << line.toString(db.strings) << endl;
 			}
 			yearFrom = era.until.year;
 		} else {
 			Serial << ", dstoff " << String(era.dstoff) << endl;
 		}
 	}
+
+	heap -= system_get_free_heap_size();
+
+	Serial << _F("Heap used ") << heap << endl;
+	Serial << _F("Strings length ") << db.strings.length() << endl;
+	Serial << db.strings.join(", ") << endl;
 
 #if 0
 	TzData::Year yearFrom{};

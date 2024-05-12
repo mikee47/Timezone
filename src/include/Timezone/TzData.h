@@ -1,6 +1,6 @@
 #pragma once
 
-#include <WString.h>
+#include <Data/CStringArray.h>
 #include <DateTime.h>
 #include <Print.h>
 #include <memory>
@@ -193,7 +193,7 @@ struct Rule {
 		TimeOffset save;
 		StrPtr letters;
 
-		explicit operator String() const;
+		String toString(const CStringArray& strings) const;
 	};
 	static_assert(sizeof(Line) == 20);
 
