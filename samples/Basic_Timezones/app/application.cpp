@@ -45,8 +45,8 @@ void printCurrentTime()
 void printTzInfo(const String& name)
 {
 	auto showRule = [](const char* name, TzData::Year from, TzData::Year to) {
-		auto rules = std::make_unique<CsvTable<RuleRecord>>(new FileStream(F("rules/") + name), ' ', "", 64);
-		for(auto rule : *rules) {
+		auto rules = std::make_unique<TzInfoTable>(new FileStream(F("rules/") + name), ' ', "", 64);
+		for(RuleRecord rule : *rules) {
 			if(rule.to() < from) {
 				continue;
 			}
@@ -135,7 +135,7 @@ void printTzInfo(const String& name)
 
 void verifyData()
 {
-	auto reftable = std::make_unique<CsvTable<TzInfoRecord>>(new FileStream("to2050.tzs"), '\t', "", 256);
+	auto reftable = std::make_unique<TzInfoTable>(new FileStream("to2050.tzs"), '\t', "", 256);
 	String zone;
 	for(auto rec : *reftable) {
 		if(rec.type() == TzInfoRecord::Type::link) {
@@ -438,9 +438,6 @@ void showRootMenu()
 }
 
 } // namespace
-
-// Will be called when WiFi hardware and software initialization was finished
-// And system initialization was completed
 
 void init()
 {

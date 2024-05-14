@@ -34,7 +34,7 @@ String ZoneData::findZone(const String& name, bool includeLinks)
 	}
 
 	if(area != currentArea) {
-		zoneTable = std::make_unique<ZoneTable>(new FileStream(area + ".zi"), ' ', "", 256);
+		zoneTable = std::make_unique<TzInfoTable>(new FileStream(area + ".zi"), ' ', "", 256);
 		currentArea = area;
 	}
 
@@ -65,6 +65,7 @@ String ZoneData::findZone(const String& name, bool includeLinks)
 			break;
 		}
 
+		case TzInfoRecord::Type::rule:
 		case TzInfoRecord::Type::invalid:
 		case TzInfoRecord::Type::era:
 			break;
@@ -125,7 +126,7 @@ TzData::Rule* ZoneData::loadRule(const char* name)
 		return &rules[i];
 	}
 
-	auto table = std::make_unique<CsvTable<RuleRecord>>(new FileStream(F("rules/") + name), ' ', "", 64);
+	auto table = std::make_unique<TzInfoTable>(new FileStream(F("rules/") + name), ' ', "", 64);
 	uint16_t count{0};
 	for(auto rec : *table) {
 		++count;

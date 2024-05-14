@@ -15,6 +15,7 @@ struct TzInfoRecord : public CsvRecord {
 		zone,
 		era,
 		link,
+		rule,
 	};
 
 	Type type() const
@@ -29,6 +30,8 @@ struct TzInfoRecord : public CsvRecord {
 			return Type::zone;
 		case 'L':
 			return Type::link;
+		case 'R':
+			return Type::rule;
 		default:
 			return (c == '-') || isdigit(c) ? Type::era : Type::invalid;
 		}
@@ -36,6 +39,8 @@ struct TzInfoRecord : public CsvRecord {
 
 	using CsvRecord::CsvRecord;
 };
+
+using TzInfoTable = CsvTable<TzInfoRecord>;
 
 struct ZoneRecord {
 	enum ColumnIndex {
@@ -160,11 +165,10 @@ struct LinkRecord {
 	}
 };
 
-struct RuleRecord : public CsvRecord {
+struct RuleRecord {
 	enum ColumnIndex {
-		// SPEC CHANGE: These two fields are the same for every entry in a file
-		// col_type, // R
-		// col_name,
+		col_type, // R
+		col_name,
 		col_from,
 		col_to,
 		col_unused,
@@ -175,7 +179,13 @@ struct RuleRecord : public CsvRecord {
 		col_letters,
 	};
 
-	using CsvRecord::CsvRecord;
+	const CStringArray& row;
+
+	RuleRecord(const TzInfoRecord& rec) : row(rec.row)
+	{
+	}
+
+	// NOTE: type and name are omitted as we store each rule in its own file
 
 	TzData::Year from() const
 	{
@@ -254,8 +264,7 @@ public:
 
 	TzData::Rule* loadRule(const char* name);
 
-	using ZoneTable = CsvTable<TzInfoRecord>;
-	std::unique_ptr<ZoneTable> zoneTable;
+	std::unique_ptr<TzInfoTable> zoneTable;
 	String currentArea;
 	TzData::TimeZone timezone;
 	Vector<TzData::Rule> rules;

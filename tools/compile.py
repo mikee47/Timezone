@@ -39,14 +39,14 @@ def write_tzdata(tzdata: TzData):
     """
     Put rules into separate files in the 'rules' directory
 
-    SPEC CHANGE: Omit leading 'R' and name fields as these are the same for all entries
+    SPEC CHANGE: Blank leading 'R' and name fields as these are the same for all entries
     SPEC CHANGE: Filter pre-1970's rules
     """
     for name, rules in tzdata.rules.items():
         filtered_rules = [r for r in rules if r.applies_to(year_from, year_to)]
         if filtered_rules:
             with create_file(f'rules/{name}') as f:
-                f.write("".join(f'{repr(r)}\n' for r in filtered_rules))
+                f.write("".join(f'  {repr(r)}\n' for r in filtered_rules))
 
 
     """
