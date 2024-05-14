@@ -186,6 +186,10 @@ struct RuleRecord {
 	}
 
 	// NOTE: type and name are omitted as we store each rule in its own file
+	const char* name() const
+	{
+		return row[col_name];
+	}
 
 	TzData::Year from() const
 	{
@@ -256,6 +260,13 @@ public:
 		normalize(s);
 		return s;
 	}
+
+	/**
+	 * @brief Split a zone name into area/location
+	 * @param name On return, contains just the location
+	 * @retval String Zone area
+	 */
+	static String splitName(String& name);
 
 	// private:
 	void scanZone();

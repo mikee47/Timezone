@@ -19,19 +19,22 @@ void ZoneData::normalize(String& name)
 	}
 }
 
+String ZoneData::splitName(String& name)
+{
+	int i = name.indexOf('/');
+	if(i < 0) {
+		return F("default");
+	}
+	String area = name.substring(0, i);
+	name.remove(0, i + 1);
+	return area;
+}
+
 String ZoneData::findZone(const String& name, bool includeLinks)
 {
 	String normalisedName = normalize(name);
-	String area;
-	String location;
-	int i = normalisedName.indexOf('/');
-	if(i < 0) {
-		area = F("default");
-		location = normalisedName;
-	} else {
-		area = normalisedName.substring(0, i);
-		location = normalisedName.substring(i + 1);
-	}
+	String location = normalisedName;
+	String area = splitName(location);
 
 	if(area != currentArea) {
 		zoneTable = std::make_unique<TzInfoTable>(new FileStream(area + ".zi"), ' ', "", 256);
@@ -88,7 +91,7 @@ void ZoneData::scanZone()
 
 	timezone.eras = std::make_unique<TzData::Era[]>(numEras);
 	timezone.numEras = numEras;
-	assert(zoneTable->seek(cursor));
+	zoneTable->seek(cursor);
 	for(unsigned i = 0; i < numEras; ++i) {
 		auto& era = timezone.eras[i];
 		auto rec = zoneTable->next();
