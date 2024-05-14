@@ -107,6 +107,9 @@ void ZoneData::scanZone()
 
 TzData::StrPtr ZoneData::getStrPtr(const char* str)
 {
+	if(!str) {
+		str = "";
+	}
 	int i = strings.indexOf(str);
 	if(i < 0) {
 		i = strings.count();
