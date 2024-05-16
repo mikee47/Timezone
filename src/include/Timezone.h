@@ -39,7 +39,7 @@ enum __attribute__((packed)) dow_t {
 };
 
 enum __attribute__((packed)) month_t {
-	Jan = 1,
+	Jan = 0,
 	Feb,
 	Mar,
 	Apr,
