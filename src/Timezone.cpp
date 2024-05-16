@@ -109,7 +109,7 @@ time_t TimeChangeRule::operator()(unsigned year) const
 	uint8_t w = week;
 
 	// is this a "Last week" rule?
-	if(w == week_t::Last) {
+	if(week == week_t::Last) {
 		// yes, for "Last", go to the next month
 		if(++m > month_t::Dec) {
 			m = month_t::Jan;
@@ -130,9 +130,9 @@ time_t TimeChangeRule::operator()(unsigned year) const
 	time_t t = dt;
 
 	// add offset from the first of the month to r.dow, and offset for the given week
-	t += ((dow - dayOfWeek(t) + 7) % 7 + (w - 1) * 7) * SECS_PER_DAY;
+	t += ((dow - dayOfWeek(t) + 7) % 7 + (w - week_t::First) * 7) * SECS_PER_DAY;
 	// back up a week if this is a "Last" rule
-	if(week == 0) {
+	if(week == week_t::Last) {
 		t -= 7 * SECS_PER_DAY;
 	}
 
