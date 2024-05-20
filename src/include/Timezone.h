@@ -53,17 +53,46 @@ enum __attribute__((packed)) month_t {
 	Dec,
 };
 
-/*
- * Structure to describe rules for when daylight/summer time begins,
- * and when standard time begins
+/**
+ * @brief Describe rules for when daylight/summer time begins, and when standard time begins
+ *
+ * This rule structure is an exact analogue of the POSIX 'M'-style rules, which are the only ones
+ * in general use. The GLIBC manual page provides a good overview of these rules:
+ *
+ * 		https://sourceware.org/glibc/manual/2.39/html_node/TZ-Variable.html
+ *
+ * Original versions of this library only allowed a single value for hours, for example:
+ *
+ * 		{"BST", Last, Sun, Mar, 1, 60}
+ *
+ * However, some zones also require a minute value, such as Pacific/Chatham which changes at 03:45.
+ * We can use a fractional value (3.75) for this:
+ *
+ * 		{"+1245", First, Sun, Apr, 3.75, 765}
+ *
+ * Western greenland has a negative hours value, America/Godthab:
+ *
+ *		{"-01", Last, Sun, Mar, -1, -60}
+ *
+ * Note that at time of writing newlib (the embedded C library) does not support negative time values
+ * (via tzset) and produces incorrect results.
+ *
  */
 struct TimeChangeRule {
+	struct Time {
+		int16_t minutes;
+
+		constexpr Time(float hours = 0) : minutes(hours * MINS_PER_HOUR)
+		{
+		}
+	};
+
 	char tag[6];   ///< e.g. DST, UTC, etc.
 	week_t week;   ///< First, Second, Third, Fourth, or Last week of the month
 	dow_t dow;	 ///< Day of week, 0=Sun
 	month_t month; ///< 1=Jan
-	uint8_t hour;  ///< 0-23
-	int offset;	///< Offset from UTC in minutes
+	Time time;
+	int offset; ///< Offset from UTC in minutes
 
 	/**
 	 * @brief Convert the given time change rule to a time_t value for the given year

@@ -121,22 +121,19 @@ time_t TimeChangeRule::operator()(unsigned year) const
 
 	// calculate first day of the month, or for "Last" rules, first day of the next month
 	DateTime dt;
-	dt.Hour = hour;
-	dt.Minute = 0;
-	dt.Second = 0;
 	dt.Day = 1;
 	dt.Month = m - month_t::Jan; // Zero-based
 	dt.Year = year;
 	time_t t = dt;
 
 	// add offset from the first of the month to r.dow, and offset for the given week
-	t += ((dow - dayOfWeek(t) + 7) % 7 + (w - week_t::First) * 7) * SECS_PER_DAY;
+	t += ((dow - dayOfWeek(t) + 7) % DAYS_PER_WEEK + (w - week_t::First) * DAYS_PER_WEEK) * SECS_PER_DAY;
 	// back up a week if this is a "Last" rule
 	if(week == week_t::Last) {
-		t -= 7 * SECS_PER_DAY;
+		t -= DAYS_PER_WEEK * SECS_PER_DAY;
 	}
 
-	return t;
+	return t + int(time.minutes) * SECS_PER_MIN;
 }
 
 void Timezone::init(const TimeChangeRule& dstStart, const TimeChangeRule& stdStart)
