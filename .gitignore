@@ -1,1 +1,4 @@
 /.submodule
+out/
+.vscode/
+__pycache__/
