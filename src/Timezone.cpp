@@ -26,12 +26,6 @@ uint16_t getYear(time_t t)
 
 time_t Timezone::toLocal(time_t utc, const Rule** rule)
 {
-	// recalculate the time change points if needed
-	auto y = getYear(utc);
-	if(y != getYear(dstStartUTC)) {
-		calcTimeChanges(y);
-	}
-
 	auto& tcr = getRule(utcIsDST(utc));
 
 	if(rule) {
@@ -43,12 +37,6 @@ time_t Timezone::toLocal(time_t utc, const Rule** rule)
 
 time_t Timezone::toUTC(time_t local)
 {
-	// recalculate the time change points if needed
-	auto y = getYear(local);
-	if(y != getYear(dstStartLoc)) {
-		calcTimeChanges(y);
-	}
-
 	return local - getRule(locIsDST(local)).offsetSecs();
 }
 
@@ -78,7 +66,7 @@ bool Timezone::locIsDST(time_t local)
 {
 	// recalculate the time change points if needed
 	auto y = getYear(local);
-	if(y != getYear(dstStartLoc)) {
+	if(y != getYear(dstStartUTC + stdRule.offsetSecs())) {
 		calcTimeChanges(y);
 	}
 
@@ -86,6 +74,9 @@ bool Timezone::locIsDST(time_t local)
 	if(stdStartUTC == dstStartUTC) {
 		return false;
 	}
+
+	time_t dstStartLoc = dstStartUTC + stdRule.offsetSecs();
+	time_t stdStartLoc = stdStartUTC + dstRule.offsetSecs();
 
 	// northern hemisphere
 	if(stdStartLoc > dstStartLoc) {
@@ -98,8 +89,6 @@ bool Timezone::locIsDST(time_t local)
 
 void Timezone::calcTimeChanges(unsigned yr)
 {
-	dstStartLoc = dstRule(yr);
-	stdStartLoc = stdRule(yr);
 	dstStartUTC = dstRule(yr) - stdRule.offsetSecs();
 	stdStartUTC = stdRule(yr) - dstRule.offsetSecs();
 }
@@ -142,11 +131,8 @@ void Timezone::init(const Rule& dstStart, const Rule& stdStart)
 {
 	dstRule = dstStart;
 	stdRule = stdStart;
-	// force calcTimeChanges() at next conversion call
-	dstStartUTC = 0;
-	stdStartUTC = 0;
-	dstStartLoc = 0;
-	stdStartLoc = 0;
+	dstStartUTC = invalidTime;
+	stdStartUTC = invalidTime;
 }
 
 } // namespace TZ

@@ -18,6 +18,7 @@
 #pragma once
 
 #include <DateTime.h>
+#include <limits>
 
 namespace TZ
 {
@@ -62,6 +63,29 @@ enum month_t {
 	Nov,
 	Dec,
 };
+
+/**
+ * @brief Earliest timestamp we might wish to use
+ * @note
+ * 	 64-bit  -5364662400  "1800-01-01 00:00:00"
+ *   32-bit  -2147483647  "1901-12-31 20:45:53"
+ * @todo Simplify this expression once 32-bit time_t has been eradicated.
+ */
+static constexpr time_t minTime = std::max(-5364662400LL, (long long)std::numeric_limits<time_t>::min() + 1);
+
+/**
+ * @brief Largest future timestamp value we could reasonably want
+ * @note
+ * 	 64-bit  253402300799  "9999-12-31 23:59:59"
+ *   32-bit  2147483646    "2038-01-19 03:14:06"
+ * @todo Simplify this expression once 32-bit time_t has been eradicated.
+ */
+static constexpr time_t maxTime = std::min(253402300799LL, (long long)std::numeric_limits<time_t>::max() - 1);
+
+/**
+ * @brief Value outside normal range used to indicate abnormal or uninitialised time values
+ */
+static constexpr time_t invalidTime = maxTime + 1;
 
 /**
  * @brief Describe rules for when daylight/summer time begins, and when standard time begins
@@ -240,10 +264,8 @@ private:
 private:
 	Rule dstRule = {"DST", First, Sun, Jan, 1, 0}; ///< rule for start of dst or summer time for any year
 	Rule stdRule = {"UTC", First, Sun, Jan, 1, 0}; ///< rule for start of standard time for any year
-	time_t dstStartUTC = 0;						   ///< dst start for given/current year, given in UTC
-	time_t stdStartUTC = 0;						   ///< std time start for given/current year, given in UTC
-	time_t dstStartLoc = 0;						   ///< dst start for given/current year, given in local time
-	time_t stdStartLoc = 0;						   ///< std time start for given/current year, given in local time
+	time_t dstStartUTC{invalidTime};			   ///< dst start for given/current year, given in UTC
+	time_t stdStartUTC{invalidTime};			   ///< std time start for given/current year, given in UTC
 };
 
 } // namespace TZ
