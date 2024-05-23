@@ -19,8 +19,10 @@
 
 #include <DateTime.h>
 
-// convenient constants for TimeChangeRules
-enum __attribute__((packed)) week_t {
+/**
+ * @brief Week number for `TimeChangeRule`
+ */
+enum week_t {
 	First,
 	Second,
 	Third,
@@ -28,7 +30,10 @@ enum __attribute__((packed)) week_t {
 	Last,
 };
 
-enum __attribute__((packed)) dow_t {
+/**
+ * @brief Day of week. Same as DateTime dtDays_t.
+ */
+enum dow_t {
 	Sun = 0,
 	Mon,
 	Tue,
@@ -38,7 +43,10 @@ enum __attribute__((packed)) dow_t {
 	Sat,
 };
 
-enum __attribute__((packed)) month_t {
+/**
+ * @brief Month by name. Same as DateTime dtMonth_t.
+ */
+enum month_t {
 	Jan = 0,
 	Feb,
 	Mar,
@@ -87,12 +95,12 @@ struct TimeChangeRule {
 		}
 	};
 
-	char tag[6];   ///< e.g. DST, UTC, etc.
-	week_t week;   ///< First, Second, Third, Fourth, or Last week of the month
-	dow_t dow;	 ///< Day of week, 0=Sun
-	month_t month; ///< 1=Jan
+	char tag[6]; ///< e.g. DST, UTC, etc.
+	week_t week : 4;
+	dow_t dow : 4;
+	month_t month : 8;
 	Time time;
-	int offset; ///< Offset from UTC in minutes
+	int16_t offset; ///< Offset from UTC in minutes
 
 	/**
 	 * @brief Convert the given time change rule to a time_t value for the given year
@@ -101,6 +109,10 @@ struct TimeChangeRule {
 	 */
 	time_t operator()(unsigned year) const;
 };
+
+#ifndef __WIN32
+static_assert(sizeof(TimeChangeRule) == 12, "TimeChangeRule size unexpected");
+#endif
 
 /**
  * @brief Class to support local/UTC time conversions using rules
