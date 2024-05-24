@@ -1,0 +1,26 @@
+{
+    "name": "sysclock",
+    "base_config": "standard",
+    "options": [
+        "2m"
+    ],
+    "partitions": {
+        "fwfs1": {
+            "device": "spiFlash",
+            "address": "0x00100000",
+            "size": "1000K",
+            "type": "data",
+            "subtype": "fwfs",
+            "filename": "out/fwfs1.bin",
+            "build": {
+                "target": "fwfs-build",
+                "config": {
+                    "name": "System clock information",
+                    "source": {
+                        "/": "files"
+                    }
+                }
+            }
+        }
+    }
+}
