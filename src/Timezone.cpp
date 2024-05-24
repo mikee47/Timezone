@@ -35,9 +35,19 @@ time_t Timezone::toLocal(time_t utc, const Rule** rule)
 	return utc + tcr.offsetSecs();
 }
 
-time_t Timezone::toUTC(time_t local)
+ZonedTime Timezone::makeZoned(time_t utc, bool beforeTransition)
 {
-	return local - getRule(locIsDST(local)).offsetSecs();
+	bool isDst = utcIsDST(utc - (beforeTransition ? 1 : 0));
+	auto& tcr = getRule(isDst);
+	return ZonedTime{utc, {tcr.tag, tcr.offsetMins, isDst}};
+}
+
+ZonedTime Timezone::toUTC(time_t local)
+{
+	bool isDst = locIsDST(local);
+	auto& tcr = getRule(isDst);
+	auto utc = local - tcr.offsetSecs();
+	return ZonedTime{utc, {tcr.tag, tcr.offsetMins, isDst}};
 }
 
 bool Timezone::utcIsDST(time_t utc)

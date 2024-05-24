@@ -17,7 +17,7 @@
 
 #pragma once
 
-#include <DateTime.h>
+#include <ZonedTime.h>
 #include <limits>
 
 namespace TZ
@@ -121,7 +121,8 @@ struct Rule {
 		}
 	};
 
-	char tag[6]; ///< e.g. DST, UTC, etc.
+	using Tag = DateTime::ZoneInfo::Tag;
+	Tag tag; ///< e.g. DST, UTC, etc.
 	week_t week : 4;
 	dow_t dow : 4;
 	month_t month : 8;
@@ -192,9 +193,19 @@ public:
 	time_t toLocal(time_t utc, const Rule** rule = nullptr);
 
 	/**
+	 * @brief Obtain a ZonedTime instance for the given UTC
+	 * @param utc Time in UTC
+	 * @param beforeTransition If time is exactly on a transition to/from daylight savings then
+	 * this determines whether the returned information contains the local time prior to the change
+	 * or after the change.
+	 * @retval ZonedTime Contains the UTC time given plus offset, etc. at that point in time
+	 */
+	ZonedTime makeZoned(time_t utc, bool beforeTransition = false);
+
+	/**
 	 * @brief Convert the given local time to UTC time.
 	 * @param local Local time
-	 * @retval time_t Time in UTC
+	 * @retval ZonedTime Contains UTC point in time with associated local offset, etc.
 	 * @note
 	 *
 	 * WARNING:
@@ -219,7 +230,7 @@ public:
      * Calling this function with local times during a transition interval
      * should be avoided.
 	 */
-	time_t toUTC(time_t local);
+	ZonedTime toUTC(time_t local);
 
 	/**
 	 * @brief Determine whether the UTC time is within the DST interval or the Standard time interval
