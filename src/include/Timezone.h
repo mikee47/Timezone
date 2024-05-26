@@ -1,17 +1,25 @@
 /****
- * Sming Framework Project - Open Source framework for high efficiency native ESP8266 development.
- * Created 2015 by Skurydin Alexey
- * http://github.com/SmingHub/Sming
- * All files of the Sming Core are provided under the LGPL v3 license.
- *
  * Timezone.h - Time Zone support library
  *
  * Original code (c) Jack Christensen Mar 2012
  * Arduino Timezone Library Copyright (C) 2018 by Jack Christensen and
  * licensed under GNU GPL v3.0, https://www.gnu.org/licenses/gpl.html
  *
+ * This file is part of the Timezone Library
+ *
+ * This library is free software: you can redistribute it and/or modify it under the terms of the
+ * GNU General Public License as published by the Free Software Foundation, version 3 or later.
+ *
+ * This library is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+ * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along with this library.
+ * If not, see <https://www.gnu.org/licenses/>.
+ *
  * @author mikee47 <mike@sillyhouse.net>
  * July 2018 Ported to Sming
+ * May 2024 Added Posix TZ string and IANA database support
  *
  ****/
 
