@@ -155,12 +155,33 @@ public:
 	{
 	}
 
+	/**
+	 * @brief Create a timezone with daylight savings
+	 * @param dstStart Rule giving start of daylight savings
+	 * @param stdStart Rule giving start of standard time
+	 * @note If both rules are the same then the zone operates in permanent standard time
+	 */
 	Timezone(const Rule& dstStart, const Rule& stdStart)
+		: dstRule(dstStart), stdRule(stdStart), hasDst(dstRule.tag[0] && dstRule != stdRule)
 	{
-		init(dstStart, stdStart);
 	}
 
-	void init(const Rule& dstStart, const Rule& stdStart);
+	/**
+	 * @brief Create a timezone which has no daylight savings
+	 * @param std Rule describing standard time
+	 * @note Only tag and offset fields from rule are significant
+	 */
+	explicit Timezone(const Rule& std) : dstRule(std), stdRule(std), hasDst(false)
+	{
+	}
+
+	/**
+	 * @deprected Use copy assignment, e.g. `tz = Timezone(...)`
+	 */
+	void init(const Rule& dstStart, const Rule& stdStart) SMING_DEPRECATED
+	{
+		*this = Timezone(dstStart, stdStart);
+	}
 
 	/**
 	 * @brief Convert the given UTC time to local time, standard or daylight time
@@ -270,11 +291,11 @@ private:
 	void calcTimeChanges(unsigned yr);
 
 private:
-	Rule dstRule = {"DST", First, Sun, Jan, 1, 0}; ///< rule for start of dst or summer time for any year
-	Rule stdRule = {"UTC", First, Sun, Jan, 1, 0}; ///< rule for start of standard time for any year
-	time_t dstStartUTC{invalidTime};			   ///< dst start for given/current year, given in UTC
-	time_t stdStartUTC{invalidTime};			   ///< std time start for given/current year, given in UTC
-	bool hasDst{};								   ///< false if rules are the same
+	Rule dstRule{};					 ///< rule for start of dst or summer time for any year
+	Rule stdRule{};					 ///< rule for start of standard time for any year
+	time_t dstStartUTC{invalidTime}; ///< dst start for given/current year, given in UTC
+	time_t stdStartUTC{invalidTime}; ///< std time start for given/current year, given in UTC
+	bool hasDst{};					 ///< false if rules are the same
 };
 
 } // namespace TZ

@@ -125,13 +125,4 @@ time_t Rule::operator()(unsigned year) const
 	return t + int(time.minutes) * SECS_PER_MIN;
 }
 
-void Timezone::init(const Rule& dstStart, const Rule& stdStart)
-{
-	dstRule = dstStart;
-	stdRule = stdStart;
-	dstStartUTC = invalidTime;
-	stdStartUTC = invalidTime;
-	hasDst = (&dstRule != &stdRule);
-}
-
 } // namespace TZ
