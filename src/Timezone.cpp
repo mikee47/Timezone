@@ -42,15 +42,14 @@ time_t Timezone::toUTC(time_t local)
 
 bool Timezone::utcIsDST(time_t utc)
 {
+	if(!hasDst) {
+		return false;
+	}
+
 	// recalculate the time change points if needed
 	auto y = getYear(utc);
 	if(y != getYear(dstStartUTC)) {
 		calcTimeChanges(y);
-	}
-
-	// daylight time not observed in this tz
-	if(stdStartUTC == dstStartUTC) {
-		return false;
 	}
 
 	// northern hemisphere
@@ -64,15 +63,14 @@ bool Timezone::utcIsDST(time_t utc)
 
 bool Timezone::locIsDST(time_t local)
 {
+	if(!hasDst) {
+		return false;
+	}
+
 	// recalculate the time change points if needed
 	auto y = getYear(local);
 	if(y != getYear(dstStartUTC + stdRule.offsetSecs())) {
 		calcTimeChanges(y);
-	}
-
-	// daylight time not observed in this tz
-	if(stdStartUTC == dstStartUTC) {
-		return false;
 	}
 
 	time_t dstStartLoc = dstStartUTC + stdRule.offsetSecs();
@@ -133,6 +131,7 @@ void Timezone::init(const Rule& dstStart, const Rule& stdStart)
 	stdRule = stdStart;
 	dstStartUTC = invalidTime;
 	stdStartUTC = invalidTime;
+	hasDst = (&dstRule != &stdRule);
 }
 
 } // namespace TZ

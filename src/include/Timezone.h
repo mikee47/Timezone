@@ -254,6 +254,14 @@ public:
 		return isDst ? dstRule : stdRule;
 	}
 
+	/**
+	 * @brief If dst and std rules are the same we do not use daylight savings
+	 */
+	bool hasDaylightSavings() const
+	{
+		return hasDst;
+	}
+
 private:
 	/*
 	 * Calculate the DST and standard time change points for the given
@@ -266,6 +274,7 @@ private:
 	Rule stdRule = {"UTC", First, Sun, Jan, 1, 0}; ///< rule for start of standard time for any year
 	time_t dstStartUTC{invalidTime};			   ///< dst start for given/current year, given in UTC
 	time_t stdStartUTC{invalidTime};			   ///< std time start for given/current year, given in UTC
+	bool hasDst{};								   ///< false if rules are the same
 };
 
 } // namespace TZ
