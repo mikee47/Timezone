@@ -366,7 +366,7 @@ void listCountriesByTimezone()
 
 void printFile(const String& filename)
 {
-	auto table = std::make_unique<CsvTable<CsvRecord>>(new FileStream(filename), '\t', "", 256);
+	auto table = std::make_unique<CSV::Table<>>(new FileStream(filename), '\t', "", 256);
 	unsigned count{0};
 	unsigned comments{0};
 	size_t size{0};

@@ -1,8 +1,8 @@
 #pragma once
 
-#include "CsvTable.h"
+#include <CSV/Table.h>
 
-struct Country : public CsvRecord {
+struct Country : public CSV::Record {
 	/**
 	  * @brief 2-character country code
 	  */
@@ -41,7 +41,7 @@ struct Country : public CsvRecord {
 		col_name,
 	};
 
-	using CsvRecord::CsvRecord;
+	using Record::Record;
 
 	Code code() const
 	{
@@ -69,7 +69,7 @@ struct Country : public CsvRecord {
 	}
 };
 
-class CountryTable : public CsvTable<Country>
+class CountryTable : public CSV::Table<Country>
 {
 public:
 	CountryTable(const String& filename);
