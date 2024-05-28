@@ -1,11 +1,11 @@
 #pragma once
 
-#include "CsvTable.h"
+#include <CSV/Table.h>
 
 /**
  * @brief Access a single zone information record
  */
-struct Zone : public CsvRecord {
+struct Zone : public CSV::Record {
 	enum ColumnIndex {
 		col_code,
 		col_coordinates,
@@ -13,7 +13,7 @@ struct Zone : public CsvRecord {
 		col_comments,
 	};
 
-	using CsvRecord::CsvRecord;
+	using Record::Record;
 
 	CStringArray codes() const
 	{
@@ -69,7 +69,7 @@ struct Zone : public CsvRecord {
 /**
  * @brief Access zone table entries stored in CSV format
  */
-class ZoneTable : public CsvTable<Zone>
+class ZoneTable : public CSV::Table<Zone>
 {
 public:
 	ZoneTable(const String& filename);

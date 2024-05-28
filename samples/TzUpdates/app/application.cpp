@@ -1,5 +1,5 @@
 #include <SmingCore.h>
-#include <Data/CsvParser.h>
+#include <CSV/Parser.h>
 #include <Timezone/TzInfo.h>
 #include <LittleFS.h>
 #include <IFS/Debug.h>
@@ -44,10 +44,15 @@ File areaFile;
 String ruleName;
 File ruleFile;
 
-bool handleRow(const CsvParser& parser, const CStringArray& row)
+bool handleRow(const CStringArray& row)
 {
-	auto type = *row[0];
-	switch(type) {
+	auto type = row[0];
+	if(!type) {
+		// Probably a comment row
+		return true;
+	}
+
+	switch(*type) {
 	case 'Z': {
 		CStringArray tmp = row;
 		tmp.popFront();
@@ -140,17 +145,26 @@ bool handleRow(const CsvParser& parser, const CStringArray& row)
 	return true;
 }
 
-CsvParser parser(handleRow, '\0', "", 256);
+CSV::Parser parser({
+	.commentChars = "#",
+	.lineLength = 256,
+	.fieldSeparator = '\0',
+});
 
-int onRequestBody(HttpConnection& client, const char* at, size_t length)
+int onRequestBody(HttpConnection&, const char* at, size_t length)
 {
-	parser.parse(at, length);
+	size_t offset{0};
+	while(parser.push(at, length, offset)) {
+		handleRow(parser.getRow());
+	}
 	return 0;
 }
 
 void endParse()
 {
-	parser.parse(nullptr, 0);
+	if(parser.flush()) {
+		handleRow(parser.getRow());
+	}
 	areaFile.close();
 	areaName = nullptr;
 	ruleFile.close();
@@ -185,14 +199,14 @@ void requestNextFile()
 	downloadClient.send(request);
 }
 
-void gotIP(IpAddress ip, IpAddress netmask, IpAddress gateway)
+void gotIP(IpAddress ip, IpAddress, IpAddress)
 {
 	Serial << _F("Connected. Got IP: ") << ip << endl;
 
 	requestNextFile();
 }
 
-void connectFail(const String& ssid, MacAddress bssid, WifiDisconnectReason reason)
+void connectFail(const String&, MacAddress, WifiDisconnectReason)
 {
 	Serial.println(F("I'm NOT CONNECTED!"));
 }
@@ -212,7 +226,10 @@ void connectFail(const String& ssid, MacAddress bssid, WifiDisconnectReason reas
 	char buffer[990];
 	int len;
 	while((len = file.read(buffer, sizeof(buffer))) > 0) {
-		parser.parse(buffer, len);
+		size_t offset{0};
+		while(parser.push(buffer, len, offset)) {
+			handleRow(parser.getRow());
+		}
 	}
 	endParse();
 	Serial << "OK, parse done" << endl;

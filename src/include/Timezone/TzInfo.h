@@ -1,6 +1,6 @@
 #pragma once
 
-#include "CsvTable.h"
+#include <CSV/Table.h>
 #include "TzData.h"
 #include <WVector.h>
 
@@ -9,7 +9,7 @@
  *
  * Use `ZoneRecord`, `EraRecord` or `LinkRecord` to access according to type.
  */
-struct TzInfoRecord : public CsvRecord {
+struct TzInfoRecord : public CSV::Record {
 	enum class Type : char {
 		invalid,
 		zone,
@@ -37,10 +37,10 @@ struct TzInfoRecord : public CsvRecord {
 		}
 	}
 
-	using CsvRecord::CsvRecord;
+	using Record::Record;
 };
 
-using TzInfoTable = CsvTable<TzInfoRecord>;
+using TzInfoTable = CSV::Table<TzInfoRecord>;
 
 struct ZoneRecord {
 	enum ColumnIndex {
