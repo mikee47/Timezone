@@ -19,8 +19,10 @@
 
 #include <DateTime.h>
 
+namespace TZ
+{
 /**
- * @brief Week number for `TimeChangeRule`
+ * @brief Week number for `Rule`
  */
 enum week_t {
 	First,
@@ -86,7 +88,7 @@ enum month_t {
  * (via tzset) and produces incorrect results.
  *
  */
-struct TimeChangeRule {
+struct Rule {
 	struct Time {
 		int16_t minutes;
 
@@ -116,7 +118,7 @@ struct TimeChangeRule {
 };
 
 #ifndef __WIN32
-static_assert(sizeof(TimeChangeRule) == 12, "TimeChangeRule size unexpected");
+static_assert(sizeof(Rule) == 12, "Rule size unexpected");
 #endif
 
 /**
@@ -129,12 +131,12 @@ public:
 	{
 	}
 
-	Timezone(const TimeChangeRule& dstStart, const TimeChangeRule& stdStart)
+	Timezone(const Rule& dstStart, const Rule& stdStart)
 	{
 		init(dstStart, stdStart);
 	}
 
-	void init(const TimeChangeRule& dstStart, const TimeChangeRule& stdStart);
+	void init(const Rule& dstStart, const Rule& stdStart);
 
 	/**
 	 * @brief Convert the given UTC time to local time, standard or daylight time
@@ -142,7 +144,7 @@ public:
 	 * @param rule Optionally return the rule used to convert the time
 	 * @retval time_t The local time
 	 */
-	time_t toLocal(time_t utc, const TimeChangeRule** rule = nullptr);
+	time_t toLocal(time_t utc, const Rule** rule = nullptr);
 
 	/**
 	 * @brief Convert the given local time to UTC time.
@@ -221,9 +223,9 @@ public:
 	/**
 	 * @brief Get reference to a timechange rule
 	 * @param isDst true for DST rule, false for STD rule
-	 * @retval TimeChangeRule
+	 * @retval Rule
 	 */
-	const TimeChangeRule& getRule(bool isDst) const
+	const Rule& getRule(bool isDst) const
 	{
 		return isDst ? dstRule : stdRule;
 	}
@@ -236,10 +238,15 @@ private:
 	void calcTimeChanges(unsigned yr);
 
 private:
-	TimeChangeRule dstRule = {"DST", First, Sun, Jan, 1, 0}; ///< rule for start of dst or summer time for any year
-	TimeChangeRule stdRule = {"UTC", First, Sun, Jan, 1, 0}; ///< rule for start of standard time for any year
-	time_t dstStartUTC = 0;									 ///< dst start for given/current year, given in UTC
-	time_t stdStartUTC = 0;									 ///< std time start for given/current year, given in UTC
-	time_t dstStartLoc = 0;									 ///< dst start for given/current year, given in local time
-	time_t stdStartLoc = 0; ///< std time start for given/current year, given in local time
+	Rule dstRule = {"DST", First, Sun, Jan, 1, 0}; ///< rule for start of dst or summer time for any year
+	Rule stdRule = {"UTC", First, Sun, Jan, 1, 0}; ///< rule for start of standard time for any year
+	time_t dstStartUTC = 0;						   ///< dst start for given/current year, given in UTC
+	time_t stdStartUTC = 0;						   ///< std time start for given/current year, given in UTC
+	time_t dstStartLoc = 0;						   ///< dst start for given/current year, given in local time
+	time_t stdStartLoc = 0;						   ///< std time start for given/current year, given in local time
 };
+
+} // namespace TZ
+
+using Timezone = TZ::Timezone;
+using TimeChangeRule SMING_DEPRECATED = TZ::Rule;

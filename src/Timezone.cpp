@@ -17,12 +17,14 @@
 
 #include "include/Timezone.h"
 
-static uint16_t getYear(time_t t)
+namespace TZ
+{
+uint16_t getYear(time_t t)
 {
 	return DateTime(t).Year;
 }
 
-time_t Timezone::toLocal(time_t utc, const TimeChangeRule** rule)
+time_t Timezone::toLocal(time_t utc, const Rule** rule)
 {
 	// recalculate the time change points if needed
 	auto y = getYear(utc);
@@ -102,7 +104,7 @@ void Timezone::calcTimeChanges(unsigned yr)
 	stdStartUTC = stdRule(yr) - dstRule.offsetSecs();
 }
 
-time_t TimeChangeRule::operator()(unsigned year) const
+time_t Rule::operator()(unsigned year) const
 {
 	// working copies of r.month and r.week which we may adjust
 	uint8_t m = month;
@@ -136,7 +138,7 @@ time_t TimeChangeRule::operator()(unsigned year) const
 	return t + int(time.minutes) * SECS_PER_MIN;
 }
 
-void Timezone::init(const TimeChangeRule& dstStart, const TimeChangeRule& stdStart)
+void Timezone::init(const Rule& dstStart, const Rule& stdStart)
 {
 	dstRule = dstStart;
 	stdRule = stdStart;
@@ -146,3 +148,5 @@ void Timezone::init(const TimeChangeRule& dstStart, const TimeChangeRule& stdSta
 	dstStartLoc = 0;
 	stdStartLoc = 0;
 }
+
+} // namespace TZ
