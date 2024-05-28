@@ -140,6 +140,21 @@ struct Rule {
 	 * @retval time_t Timestamp for the given time change
 	 */
 	time_t operator()(unsigned year) const;
+
+	/**
+	 * @brief Obtain a numeric value for comparison purposes
+	 */
+	explicit operator int() const
+	{
+		return (month << 6) | (week << 3) | dow;
+	}
+
+	operator DateTime::ZoneInfo() const
+	{
+		return {tag, offsetMins};
+	}
+
+	static const Rule UTC;
 };
 
 #ifndef __WIN32
@@ -275,6 +290,23 @@ public:
 	{
 		return timeTag(locIsDST(local));
 	}
+
+	/**
+	 * @brief Determine when the next change to/from DST is
+	 * @param utcFrom Point in time *after* which change is to occur
+	 * @retval ZonedTime UTC time When the change will occur, or maxTime if there is no DST in effect.
+	 * ZonedTime::local() returns the *new* local time at the transition.
+	 */
+	ZonedTime getNextChange(time_t utcFrom);
+
+	/**
+	 * @brief Get transition time for the given year
+	 * @param year
+	 * @param toDst true to obtain STD->DST transition, false for DST->STD
+	 * @retval ZonedTime Time of transition, or maxTime if there is no DST in effect.
+	 * ZonedTime::local() returns the *new* local time at the transition.
+	 */
+	ZonedTime getTransition(uint16_t year, bool toDst);
 
 	/**
 	 * @brief Get reference to a timechange rule

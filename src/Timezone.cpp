@@ -135,4 +135,34 @@ time_t Rule::operator()(unsigned year) const
 	return t + int(time.minutes) * SECS_PER_MIN;
 }
 
+ZonedTime Timezone::getNextChange(time_t utcFrom)
+{
+	if(!hasDst) {
+		// No daylight savings
+		return {maxTime, stdRule, false};
+	}
+
+	ZonedTime from = toLocal(utcFrom);
+	bool toDst = !from.isDst();
+	auto& toRule = getRule(toDst);
+	auto year = getYear(from.local());
+	auto& fromRule = from.getRule();
+	if(int(toRule) < int(fromRule)) {
+		++year;
+	}
+	return {toRule(year) - fromRule.offsetSecs(), toRule, toDst};
+}
+
+ZonedTime Timezone::getTransition(uint16_t year, bool toDst)
+{
+	if(!hasDst) {
+		// No daylight savings
+		return {maxTime, stdRule, false};
+	}
+
+	auto& toRule = getRule(toDst);
+	auto& fromRule = getRule(!toDst);
+	return {toRule(year) - fromRule.offsetSecs(), toRule, toDst};
+}
+
 } // namespace TZ
