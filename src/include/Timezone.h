@@ -18,6 +18,7 @@
 #pragma once
 
 #include <ZonedTime.h>
+#include <Print.h>
 #include <limits>
 
 namespace TZ
@@ -149,9 +150,14 @@ struct Rule {
 		return (month << 6) | (week << 3) | dow;
 	}
 
-	operator DateTime::ZoneInfo() const
+	bool operator==(const Rule& other) const
 	{
-		return {tag, offsetMins};
+		return this == &other || memcmp(this, &other, sizeof(other)) == 0;
+	}
+
+	bool operator!=(const Rule& other) const
+	{
+		return !operator==(other);
 	}
 
 	static const Rule UTC;
@@ -197,6 +203,23 @@ public:
 	void init(const Rule& dstStart, const Rule& stdStart) SMING_DEPRECATED
 	{
 		*this = Timezone(dstStart, stdStart);
+	}
+
+	/**
+	 * @name Construct a Timezone from a POSIX rule string
+	 * @{
+	*/
+	static Timezone fromPosix(const char* tzstr);
+
+	static Timezone fromPosix(const String& tzstr)
+	{
+		return fromPosix(tzstr.c_str());
+	}
+	/** @} */
+
+	explicit operator bool() const
+	{
+		return *stdRule.tag != '\0';
 	}
 
 	/**
@@ -326,6 +349,10 @@ public:
 		return hasDst;
 	}
 
+	String toString() const;
+
+	size_t printTo(Print& p) const;
+
 private:
 	/*
 	 * Calculate the DST and standard time change points for the given
@@ -342,6 +369,8 @@ private:
 };
 
 } // namespace TZ
+
+String toString(TZ::week_t week);
 
 using Timezone = TZ::Timezone;
 using TimeChangeRule SMING_DEPRECATED = TZ::Rule;

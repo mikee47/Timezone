@@ -17,8 +17,29 @@
 
 #include "include/Timezone.h"
 
+String toString(TZ::week_t week)
+{
+	switch(week) {
+	case TZ::week_t::First:
+		return F("1st");
+	case TZ::week_t::Second:
+		return F("2nd");
+	case TZ::week_t::Third:
+		return F("3rd");
+	case TZ::week_t::Fourth:
+		return F("4th");
+	case TZ::week_t::Last:
+		return F("Last");
+	}
+	return nullptr;
+}
+
 namespace TZ
 {
+const Rule Rule::UTC{{"UTC"}};
+
+bool parseTzstr(const char* tzstr, Rule& dst, Rule& std);
+
 uint16_t getYear(time_t t)
 {
 	return DateTime(t).Year;
@@ -48,6 +69,16 @@ ZonedTime Timezone::toUTC(time_t local)
 	auto& tcr = getRule(isDst);
 	auto utc = local - tcr.offsetSecs();
 	return ZonedTime{utc, {tcr.tag, tcr.offsetMins, isDst}};
+}
+
+Timezone Timezone::fromPosix(const char* tzstr)
+{
+	Rule dst;
+	Rule std;
+	if(parseTzstr(tzstr, dst, std)) {
+		return Timezone(dst, std);
+	}
+	return Timezone();
 }
 
 bool Timezone::utcIsDST(time_t utc)
@@ -139,30 +170,140 @@ ZonedTime Timezone::getNextChange(time_t utcFrom)
 {
 	if(!hasDst) {
 		// No daylight savings
-		return {maxTime, stdRule, false};
+		return {maxTime, {stdRule.tag, stdRule.offsetMins, false}};
 	}
 
-	ZonedTime from = toLocal(utcFrom);
-	bool toDst = !from.isDst();
+	bool fromDst = utcIsDST(utcFrom);
+	auto& fromRule = getRule(fromDst);
+	bool toDst = !fromDst;
 	auto& toRule = getRule(toDst);
-	auto year = getYear(from.local());
-	auto& fromRule = from.getRule();
+	auto year = getYear(utcFrom + fromRule.offsetSecs());
 	if(int(toRule) < int(fromRule)) {
 		++year;
 	}
-	return {toRule(year) - fromRule.offsetSecs(), toRule, toDst};
+	time_t utc = toRule(year) - fromRule.offsetSecs();
+	return {utc, {toRule.tag, toRule.offsetMins, toDst}};
 }
 
 ZonedTime Timezone::getTransition(uint16_t year, bool toDst)
 {
 	if(!hasDst) {
 		// No daylight savings
-		return {maxTime, stdRule, false};
+		return {maxTime, {stdRule.tag, stdRule.offsetMins, false}};
 	}
 
 	auto& toRule = getRule(toDst);
 	auto& fromRule = getRule(!toDst);
-	return {toRule(year) - fromRule.offsetSecs(), toRule, toDst};
+	time_t utc = toRule(year) - fromRule.offsetSecs();
+	return {utc, {toRule.tag, toRule.offsetMins, toDst}};
+}
+
+String Timezone::toString() const
+{
+	String s;
+
+	auto addTag = [&](const char* tag) {
+		bool quote = !isalpha(tag[0]);
+		if(quote) {
+			s += '<';
+		}
+		s += tag;
+		if(quote) {
+			s += '>';
+		}
+	};
+
+	auto addTime = [&](int16_t mins) {
+		auto h = mins / MINS_PER_HOUR;
+		mins = abs(mins) % MINS_PER_HOUR;
+		s += h;
+		if(mins) {
+			s += ':';
+			s += mins;
+		}
+	};
+
+	addTag(stdRule.tag);
+	addTime(-stdRule.offsetMins);
+	if(!hasDst) {
+		return s;
+	}
+
+	addTag(dstRule.tag);
+	if(dstRule.offsetMins != stdRule.offsetMins + MINS_PER_HOUR) {
+		addTime(-dstRule.offsetMins);
+	}
+
+	auto addRule = [&](const Rule& rule) {
+		s += ",M";
+		s += rule.month + 1;
+		s += '.';
+		s += rule.week + 1;
+		s += '.';
+		s += rule.dow;
+		if(rule.time.minutes == 2 * MINS_PER_HOUR) {
+			return;
+		}
+		s += '/';
+		addTime(rule.time.minutes);
+	};
+
+	addRule(dstRule);
+	addRule(stdRule);
+
+	return s;
+}
+
+String describeTransition(const Rule& from, const Rule& to)
+{
+	String s;
+	s.reserve(50);
+
+	auto addTime = [&](int16_t mins) {
+		auto h = mins / MINS_PER_HOUR;
+		mins = abs(mins) % MINS_PER_HOUR;
+		s.concat(h, DEC, 2);
+		s += ':';
+		s.concat(mins, DEC, 2);
+	};
+
+	if(to.offsetMins >= 0) {
+		s += '+';
+	}
+	addTime(to.offsetMins);
+
+	if(from == to) {
+		s += " (";
+		s += from.tag;
+		s += ')';
+	} else {
+		s += " from ";
+		s += ::toString(to.week);
+		s += ' ';
+		s += DateTime::getIsoDayName(to.dow);
+		s += " in ";
+		s += DateTime::getIsoMonthName(to.month);
+
+		s += " at ";
+		addTime(to.time.minutes);
+
+		s += ' ';
+		s += from.tag;
+	}
+
+	return s;
+}
+
+size_t Timezone::printTo(Print& p) const
+{
+	size_t n{0};
+	n += p.print(_F("STD: "));
+	n += p.print(describeTransition(dstRule, stdRule));
+	if(hasDst) {
+		n += p.print(_F("; DST: "));
+		n += p.print(describeTransition(stdRule, dstRule));
+	}
+	return n;
 }
 
 } // namespace TZ
