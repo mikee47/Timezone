@@ -36,7 +36,7 @@ time_t Timezone::toLocal(time_t utc, const TimeChangeRule** rule)
 		*rule = &tcr;
 	}
 
-	return utc + (tcr.offset * SECS_PER_MIN);
+	return utc + tcr.offsetSecs();
 }
 
 time_t Timezone::toUTC(time_t local)
@@ -98,8 +98,8 @@ void Timezone::calcTimeChanges(unsigned yr)
 {
 	dstStartLoc = dstRule(yr);
 	stdStartLoc = stdRule(yr);
-	dstStartUTC = dstStartLoc - stdRule.offset * SECS_PER_MIN;
-	stdStartUTC = stdStartLoc - dstRule.offset * SECS_PER_MIN;
+	dstStartUTC = dstRule(yr) - stdRule.offsetSecs();
+	stdStartUTC = stdRule(yr) - dstRule.offsetSecs();
 }
 
 time_t TimeChangeRule::operator()(unsigned year) const

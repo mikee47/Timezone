@@ -100,7 +100,12 @@ struct TimeChangeRule {
 	dow_t dow : 4;
 	month_t month : 8;
 	Time time;
-	int16_t offset; ///< Offset from UTC in minutes
+	int16_t offsetMins; ///< Offset from UTC
+
+	int offsetSecs() const
+	{
+		return int(offsetMins) * SECS_PER_MIN;
+	}
 
 	/**
 	 * @brief Convert the given time change rule to a time_t value for the given year
