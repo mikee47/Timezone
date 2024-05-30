@@ -4,6 +4,7 @@
 # formats as required by applications.
 #
 
+from __future__ import annotations
 import os
 import sys
 import json
@@ -12,9 +13,6 @@ import unicodedata
 from datetime import datetime, date, timedelta
 import calendar
 from dataclasses import dataclass, field
-
-# Where to find compiled IANA timezone database locally
-ZONEINFO_PATH = '/usr/share/zoneinfo'
 
 # Primary database source files
 TZDATA_FILE_LIST = [
@@ -332,54 +330,6 @@ class PosixExpr:
 
 
 @dataclass
-class TzString:
-    std_name: str = ''
-    std_offset: TimeOffset = None
-    dst_name: str = ''
-    dst_offset: TimeOffset = None
-    std_expr: PosixExpr = None
-    dst_expr: PosixExpr = None
-
-    def __init__(self, tzstr: str):
-        assert(tzstr[0] != ':')
-
-        m = re.match(r'''
-            (<[^>]+>|[a-zA-Z]+)([\d:\-+]+)      # std offset
-            (<[^>]+>|[a-zA-Z]+)?([\d:\-+]+)?    # [ dst [offset]
-            ,?([^,]+)?,?([^,]+)?                # [ , date [ / time ] [,date[/time]] ]
-            ''', tzstr, flags=re.VERBOSE)
-        g = m.groups()
-        self.std_name = g[0].strip('<>')
-        self.std_offset = TimeOffset(g[1])
-        if g[2]:
-            self.dst_name = g[2].strip('<>')
-        if g[3]:
-            self.dst_offset = TimeOffset(g[3])
-        if g[4]:
-            self.std_expr = PosixExpr(g[4])
-        if g[5]:
-            self.dst_expr = PosixExpr(g[5])
-
-    def __str__(self):
-        return f'"{self.std_name}" {self.std_offset}, "{self.dst_name}" {self.dst_offset}, {self.std_expr}, {self.dst_expr}'
-
-    def __repr__(self):
-        def esc(s: str) -> str:
-            return f'<{s}>' if s[0] in '+-' else s
-        s = f'"{esc(self.std_name)}{repr(self.std_offset)}'
-        if self.dst_name:
-            s += esc(self.dst_name)
-            if self.dst_offset:
-                s += repr(self.dst_offset)
-        if self.std_expr:
-            s += f',{repr(self.std_expr)}'
-        if self.dst_expr:
-            assert self.std_expr
-            s += f',{repr(self.dst_expr)}'
-        return s
-
-
-@dataclass
 class Rule:
     from_: int # YEAR
     to: int    # YEAR
@@ -505,7 +455,6 @@ class ZoneOrLink(NamedItem):
 
 @dataclass(eq=False)
 class Zone(ZoneOrLink):
-    tzstr: str
     eras: list[Era]
 
 
@@ -528,17 +477,8 @@ class TzData:
 
     def add_zone(self, fields: list[str]) -> Zone:
         name = fields[1]
-        with open(os.path.join(ZONEINFO_PATH, name), "rb") as f:
-            data = f.read()
-        if not data.startswith(b'TZif'):
-            return
-        data = data[:-1]
-        nl = data.rfind(b'\n')
-        if nl < 0:
-            return
-        tzstr = data[nl+1:].decode("utf-8")
         era = Era(fields[2:])
-        zone = Zone(name, tzstr, [era])
+        zone = Zone(name, [era])
         self.zones.append(zone)
         return zone
 
