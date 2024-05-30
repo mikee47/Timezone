@@ -4,6 +4,7 @@
 #
 #
 
+from __future__ import annotations
 import os
 from tzinfo import TzData, ZoneTable, TimeOffset, Zone, Link, remove_accents, TzString, YEAR_MIN, YEAR_MAX
 from datetime import date, datetime, timedelta, timezone
