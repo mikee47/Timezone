@@ -3,3 +3,29 @@ COMPONENT_SRCDIRS := src
 COMPONENT_DOXYGEN_INPUT := src/include
 
 TZ_COMPILE_CMDLINE := $(PYTHON) $(COMPONENT_PATH)/tools/compile.py
+
+COMPONENT_VARS := APP_TZDATA_OPTS APP_TZDATA_DIR
+APP_TZDATA_OPTS ?= --name --tzstr full
+APP_TZDATA_DIR ?= $(PROJECT_DIR)/out/Timezone
+
+ifdef APP_TZDATA_DIR
+
+TZDATA_FILES := $(addprefix $(APP_TZDATA_DIR)/,tzdata.h tzdata.cpp)
+
+$(TZDATA_FILES): | $(APP_TZDATA_DIR)
+	$(TZ_COMPILE_CMDLINE) $(APP_TZDATA_OPTS) $(APP_TZDATA_DIR)
+
+$(APP_TZDATA_DIR):
+	$(Q) mkdir -p $@
+
+COMPONENT_PREREQUISITES := $(TZDATA_FILES)
+COMPONENT_APPCODE := $(APP_TZDATA_DIR)
+COMPONENT_INCDIRS += $(APP_TZDATA_DIR)
+
+.PHONY: tzdata-clean
+tzdata-clean:
+	$(Q) rm -f $(TZDATA_FILES)
+
+clean: tzdata-clean
+
+endif

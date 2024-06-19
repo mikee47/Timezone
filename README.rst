@@ -11,7 +11,25 @@ Port of https://github.com/JChristensen/Timezone for Sming.
 Rules database
 --------------
 
-In the ``tools`` directory there is a python script (``compile.py``) which you can use to generate appropriate rules for your application.
+By default, a set of rules for all the main IANA timezones is created in the applications ``out/Timezone`` directory.
+This can be access via ``#include <tzdata.h>``.
+
+Customise using the following build variables:
+
+.. envvar:: APP_TZDATA_DIR
+
+   Default: $(PROJECT_DIR)/out/Timezone
+
+   Location for ``tzdata.cpp`` and ``tzdata.h``.
+   Set to empty string if you don't want these to be built.
+
+.. envvar:: APP_TZDATA_OPTS
+
+   Override to customise generated data.
+   Typically this is only required for testing to include transition tables.
+
+
+These files are generated using a python script ``tools/compile.py``.
 
 .. note::
 
@@ -21,6 +39,9 @@ In the ``tools`` directory there is a python script (``compile.py``) which you c
 
    See https://docs.python.org/3/library/zoneinfo.html.
 
+
+Advanced usage
+--------------
 
 You can use the tool to lookup and generate the appropriate rules for a timezone, by name.
 
