@@ -6,7 +6,9 @@
 
 from __future__ import annotations
 import os
-from tzinfo import TzData, ZoneTable, TimeOffset, Zone, Link, remove_accents, TzString, YEAR_MIN, YEAR_MAX
+from urllib.request import urlopen
+import tarfile
+from tzinfo import TzData, ZoneTable, Zone, YEAR_MIN, YEAR_MAX, IANA_URL
 from datetime import date, datetime, timedelta, timezone
 from argparse import ArgumentParser
 
@@ -183,9 +185,35 @@ def compare_tzdata(old: TzData, new: TzData) -> TzData:
     return tzupdate
 
 
+def fetch_source(source: str) -> str:
+    if not source.startswith('@'):
+        # Regular file path
+        return source
+
+    source = source[1:]
+    if source == 'latest':
+        with urlopen(f'{IANA_URL}tzdb/version') as req:
+            source = req.readline().decode().strip()
+    url = f'{IANA_URL}releases/tzdata{source}.tar.gz'
+
+    path = os.path.normpath(os.path.join(os.path.dirname(__file__), '../tzdata', source))
+    if os.path.exists(os.path.join(path, 'version')):
+        return path
+    filename = f'{path}.tar.gz'
+    if not os.path.exists(filename):
+        print(f'Fetching {url} -> {filename}')
+        os.makedirs(path)
+        with urlopen(url) as req, open(filename, 'wb') as f:
+            f.write(req.read())
+    print(f'Extracting {filename} -> {path}')
+    with tarfile.open(filename) as f:
+        f.extractall(path)
+    return path
+
+
 def main():
     parser = ArgumentParser(description='IANA database compiler')
-    parser.add_argument('source', help='Path to TZ Database source')
+    parser.add_argument('source', help=f'Path to TZ Database source, can be URL or @ for "{IANA_URL}" prefix')
     parser.add_argument('dest', help='Directory to write output files')
     parser.add_argument('--compare', help='Directory to write output files')
     args = parser.parse_args()
@@ -193,21 +221,27 @@ def main():
     global output_dir
     output_dir = args.dest
 
+    source = fetch_source(args.source)
     tzdata = TzData()
-    tzdata.load(args.source)
+    tzdata.load(source)
 
     if args.compare:
+        path = fetch_source(args.compare)
         prev = TzData()
-        prev.load(args.compare)
+        prev.load(path)
         tzdata = compare_tzdata(prev, tzdata)
         write_tzdata(tzdata)
         return
 
     write_tzdata(tzdata)
-    if os.path.isdir(args.source):
+    if os.path.isdir(source):
         zonetab = ZoneTable()
-        zonetab.load(tzdata, args.source)
+        zonetab.load(tzdata, source)
         write_zonetab(zonetab)
+
+    ver = open(os.path.join(source, 'version')).read()
+    with create_file('version') as f:
+        f.write(ver)
 
 
 if __name__ == '__main__':
