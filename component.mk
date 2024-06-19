@@ -31,3 +31,6 @@ tzdata-clean:
 clean: tzdata-clean
 
 endif
+
+
+TZDB_COMPILE_CMDLINE := $(PYTHON) -X utf8 $(COMPONENT_PATH)/tools/tzdb-compile.py

@@ -14,6 +14,10 @@ from datetime import datetime, date, timedelta
 import calendar
 from dataclasses import dataclass, field
 
+# Reference location for IANA database. Versions are contained in sub-directories.
+# e.g.  tzdata-latest.tar.gz, releases/tzdata2024a.tar.gz
+IANA_URL = 'http://data.iana.org/time-zones/'
+
 # Primary database source files
 TZDATA_FILE_LIST = [
     'africa',
