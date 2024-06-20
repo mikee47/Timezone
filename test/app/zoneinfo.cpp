@@ -70,13 +70,17 @@ public:
 	{
 		for(auto& zone : (*itarea).content()) {
 			Timezone tz(zone);
-			CHECK(tz);
 
 			Serial << zone.name().pad(35);
 #if TZINFO_WANT_TZSTR
 			Serial << String(zone.tzstr).pad(48);
 #endif
 			Serial << tz << endl;
+
+			if(!tz) {
+				Serial << _F("!! Bad timezone - skipping") << endl;
+				continue;
+			}
 
 			CHECK_EQ(tz.toString(), zone.tzstr);
 

@@ -138,7 +138,7 @@ def get_info(zone: str) -> TimezoneInfo:
     try:
         rules = decode_tzstr(tzfile.tzstr)
     except:
-        raise ValueError(f'Invalid TZ string "{tzstr}"')
+        raise ValueError(f'Invalid TZ string "{tzfile.tzstr}"')
     transitions = get_transitions(tzfile) if rules.dst else None
     return TimezoneInfo(zone, tzfile.tzstr, rules, tzfile.info[-1], transitions)
 

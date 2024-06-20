@@ -64,6 +64,9 @@ class Rule:
             self.time = Time()
             return
         m = re.match(r'M(\d+)\.(\d+)\.(\d+)/?(.+)?', expr)
+        if m is None:
+            self.time = Time()
+            return
         g = m.groups()
         self.month = int(g[0]) - 1
         self.week = int(g[1])

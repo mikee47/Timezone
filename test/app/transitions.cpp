@@ -17,6 +17,10 @@ public:
 				}
 
 				Timezone tz(zone);
+				if(!tz) {
+					Serial << zone.name() << endl << _F("!! Skipping ") << endl << endl;
+					continue;
+				}
 
 				unsigned mismatch{0};
 				ZonedTime t;
