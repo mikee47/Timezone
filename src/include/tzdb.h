@@ -48,7 +48,7 @@
 
 // clang-format off
 #define DEFINE_REF_LOCAL(name, refname) \
-	static constexpr const decltype(refname)& name = refname;
+	static constexpr decltype(refname)& name = refname;
 
 #define TZ_DEFINE_RULE_LOCAL(name, ...) \
 	static constexpr const Rule name PROGMEM {__VA_ARGS__};
