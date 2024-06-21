@@ -224,8 +224,8 @@ public:
 			if(!tzstrTimeOk) {
 				Serial << _F("!! Doesn't match localtime()") << endl;
 				Serial << _F("offset mins = ") << time.offsetMins() << endl;
-				Serial << _F("  check: ") << toString(localTime) << endl;
-				CHECK(tzstrTimeOk);
+				Serial << _F("   libc: ") << toString(localTime) << endl;
+				Serial << _F("   time: ") << toString(time) << endl;
 			}
 		}
 #endif
