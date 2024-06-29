@@ -31,7 +31,6 @@ bool matchLocation(const String& location, const char* name)
 namespace TZ
 {
 DEFINE_FSTR_LOCAL(fstr_empty, "")
-DEFINE_REF_LOCAL(area, fstr_empty)
 TIMEZONE_BEGIN(Empty, "", "")
 TZ_DEFINE_PSTR_LOCAL(tzstr, nullptr)
 DEFINE_REF_LOCAL(dst_rule, rule_none)
