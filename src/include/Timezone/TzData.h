@@ -219,7 +219,9 @@ struct Era {
 	TimeOffset dstoff;
 };
 
+#ifndef ARCH_HOST
 static_assert(sizeof(Era) == 24);
+#endif
 
 struct TimeZone {
 	String name;

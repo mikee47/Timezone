@@ -9,8 +9,7 @@ CountryTable::CountryTable(const String& filename) : Table(new FileStream(filena
 
 Country CountryTable::operator[](Country::Code code)
 {
-	reset();
-	while(auto country = next()) {
+	for(auto country : *this) {
 		if(country == code) {
 			return country;
 		}
