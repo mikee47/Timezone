@@ -5,6 +5,7 @@
 #include <Timezone/CountryMap.h>
 #include <Timezone/ZoneTable.h>
 #include <Timezone/TzInfo.h>
+#include <tzdata.h>
 
 // #define ENABLE_MALLOC_COUNT
 
@@ -15,6 +16,8 @@
 namespace
 {
 Menu menu(Serial);
+Timezone currentTimezone;
+String currentTimezoneName;
 
 std::unique_ptr<CountryTable> openCountryTable()
 {
@@ -26,20 +29,14 @@ std::unique_ptr<ZoneTable> openZoneTable()
 	return std::make_unique<ZoneTable>("zone1970.tab");
 }
 
-String timeString(time_t time, const String& id)
-{
-	String s = DateTime(time).format(_F("%a, %d %b %Y %T"));
-	s += ' ';
-	s += id;
-	return s;
-}
-
 void printCurrentTime()
 {
 	auto utc = SystemClock.now(eTZ_UTC);
-	auto local = SystemClock.now(eTZ_Local);
-	Serial << timeString(utc, "UTC") << endl;
-	Serial << timeString(local, "???") << endl;
+	Serial << ZonedTime(utc).toString() << endl;
+	if(currentTimezone) {
+		auto local = currentTimezone.makeZoned(utc);
+		Serial << local.toString() << " (" << currentTimezoneName << ")" << endl;
+	}
 }
 
 void printTzInfo(const String& name)
@@ -187,7 +184,10 @@ void zoneSelected(String name)
 {
 	menu.begin(name);
 	menu.additem(F("Make this the active zone"), [name]() {
-		Serial << F("TODO") << endl;
+		auto zone = TZ::findZone(name);
+		assert(zone);
+		currentTimezoneName = name;
+		currentTimezone = *zone;
 		showRootMenu();
 	});
 	menu.additem(F("Show details"), [name]() {
