@@ -19,19 +19,14 @@ Checking using `system_get_free_heap_size`.
 
 CountryMap::CountryMap(CountryTable& table)
 {
-	size_t count{0};
 	size_t size{0};
-
-	table.reset();
-	while(auto country = table.next()) {
-		++count;
+	for(auto country : table) {
 		size += 2 + strlen(country.name()) + 1;
 	}
 
 	list.reserve(size);
-	table.reset();
 	String line;
-	while(auto country = table.next()) {
+	for(auto country : table) {
 		auto code = country.code();
 		line = code.a;
 		line += code.b;
