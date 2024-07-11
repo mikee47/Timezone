@@ -14,7 +14,7 @@ on:
 
 jobs:
   build:
-    uses: SmingHub/Sming/.github/workflows/library.yml@develop
+    uses: mikee47/Sming/.github/workflows/library.yml@feature/windows-build
     with:
       sming_repo: ${{ inputs.sming_repo }}
       sming_branch: ${{ inputs.sming_branch }}
