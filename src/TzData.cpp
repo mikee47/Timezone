@@ -112,8 +112,8 @@ On::On(const char* s)
 
 	// Sun >= 8 first Sunday on or after the eighth
 	// Sun <= 25 last Sunday on or before the 25th
-	// The “<=” and “>=” constructs can result in a day in the neighboring month; for example, the
-	// IN - ON combination “Oct Sun >= 31” stands for the first Sunday on or after October 31,
+	// The "<=" and ">=" constructs can result in a day in the neighboring month; for example, the
+	// IN - ON combination "Oct Sun >= 31" stands for the first Sunday on or after October 31,
 	// even if that Sunday occurs in November.
 	dayOfWeek = s;
 	while(isalpha(*s)) {
