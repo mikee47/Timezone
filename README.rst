@@ -14,7 +14,7 @@ Rules database
 By default, a set of rules for all the main IANA timezones is created in the applications ``out/Timezone`` directory.
 This can be access via ``#include <tzdata.h>``.
 
-Customise using the following build variables:
+Customise using the following configuration variables:
 
 .. envvar:: APP_TZDATA_DIR
 
@@ -170,12 +170,5 @@ Further information:
 API Documentation
 -----------------
 
-.. doxygenclass:: Timezone
+.. doxygennamespace:: TZ
    :members:
-
-.. doxygenstruct:: TimeChangeRule
-   :members:
-
-.. doxygenenum:: week_t
-.. doxygenenum:: dow_t
-.. doxygenenum:: month_t
