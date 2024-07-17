@@ -5,7 +5,7 @@ on:
     inputs:
       sming_repo:
         description: 'Full URL for Sming repository'
-        default: 'https://github.com/SmingHub/Sming'
+        default: 'https://github.com/mikee47/Sming'
         type: string
       sming_branch:
         description: 'Sming branch to run against'
@@ -14,7 +14,7 @@ on:
 
 jobs:
   build:
-    uses: SmingHub/Sming/.github/workflows/library.yml@develop
+    uses: mikee47/Sming/.github/workflows/library.yml@fix/ccache-library
     with:
       sming_repo: ${{ inputs.sming_repo }}
       sming_branch: ${{ inputs.sming_branch }}
