@@ -4,4 +4,4 @@ on: [push, pull_request]
 
 jobs:
   build:
-    uses: SmingHub/Sming/.github/workflows/library.yml@develop
+    uses: mikee47/Sming/.github/workflows/library.yml@dev/ci-simplify
