@@ -50,7 +50,7 @@ DAY_NAMES_BRIEF = ['Su', 'M', 'Tu', 'W', 'Th', 'F', 'Sa']
 
 def match_name(values: list[str], name: str) -> str | None:
     for v in values:
-        if v.startswith(name):
+        if v.startswith(name) or name.startswith(v):
             return v
     raise ValueError(f'Unknown "{name}"')
 
