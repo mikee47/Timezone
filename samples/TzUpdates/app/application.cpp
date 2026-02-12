@@ -162,7 +162,7 @@ int onRequestBody(HttpConnection&, const char* at, size_t length)
 
 void endParse()
 {
-	if(parser.flush()) {
+	while(parser.flush()) {
 		handleRow(parser.getRow());
 	}
 	areaFile.close();
