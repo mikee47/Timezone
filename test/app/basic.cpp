@@ -54,7 +54,7 @@ public:
 			for(auto& t : testNames) {
 				auto zone = TZ::findZone(t.name);
 				if(zone) {
-					Serial << _F("Matched '") << t.name << _F("' to ") << zone->location << endl;
+					Serial << _F("Matched '") << t.name << _F("' to ") << zone->location() << endl;
 				}
 				CHECK(zone == t.info);
 			}

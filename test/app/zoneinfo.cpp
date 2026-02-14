@@ -73,7 +73,7 @@ public:
 
 			Serial << zone.name().pad(35);
 #if TZINFO_WANT_TZSTR
-			Serial << String(zone.tzstr).pad(48);
+			Serial << zone.tzstr().pad(48);
 #endif
 			Serial << tz << endl;
 
@@ -82,7 +82,7 @@ public:
 				continue;
 			}
 
-			CHECK_EQ(tz.toString(), zone.tzstr);
+			CHECK_EQ(tz.toString(), zone.tzstr());
 
 			auto checkLocal = [&](time_t local) {
 				auto utc = tz.toUTC(local);
@@ -180,10 +180,7 @@ public:
 				if(ttMatch == TZ::invalidTime) {
 					Serial << _F("!!   Transition not found") << endl;
 				} else {
-					DateTime::ZoneInfo zi;
-					strncpy(zi.tag.value, &zone.tznames[ttMatch.desigidx], zi.tag.maxSize + 1);
-					zi.offsetMins = ttMatch.offsetMins;
-					zi.isDst = ttMatch.isdst;
+					DateTime::ZoneInfo zi = zone.getInfo(ttMatch);
 					ZonedTime zm(ttMatch, zi);
 					Serial << _F("!! Actual on: ") << toString(ttMatch) << endl;
 					Serial << _F("!!        to: ") << toString(zm) << endl;
@@ -218,7 +215,7 @@ public:
 #if TZINFO_WANT_TZSTR
 		bool tzstrTimeOk;
 		{
-			auto localTime = getLocalTime(zone.tzstr, utc + offset);
+			auto localTime = getLocalTime(zone.tzstr(), utc + offset);
 			localTime = ZonedTime(utc, localTime.getZoneInfo());
 			tzstrTimeOk = (time.local() == localTime.local());
 			if(!tzstrTimeOk) {
