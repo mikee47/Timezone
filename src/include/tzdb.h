@@ -54,7 +54,7 @@
 	static constexpr const Rule name PROGMEM {__VA_ARGS__};
 
 #define TZ_DEFINE_PSTR_LOCAL(name, s) \
-    static constexpr const char* name PROGMEM_PSTR  = s;
+    static constexpr const char name[] PROGMEM_PSTR  = s;
 
 #define TIMEZONE_BEGIN(clsname, area_, location_) \
 	class clsname : public Timezone { \
@@ -100,21 +100,26 @@ static constexpr const Rule PROGMEM rule_none{};
 DEFINE_FSTR_ARRAY_LOCAL(transitions_none, Transition)
 
 struct Info {
-	PGM_P location;
+	PGM_P location_;
 #if TZINFO_WANT_NAME
 	const FSTR::String& area;
 #endif
 #if TZINFO_WANT_TZSTR
-	PGM_P tzstr;
+	PGM_P tzstr_;
 #endif
 #if TZINFO_WANT_RULE
 	const Rule& dstStart;
 	const Rule& stdStart;
 #endif
 #if TZINFO_WANT_TRANSITIONS
-	PGM_P tznames;
+	PGM_P tznames_;
 	const FSTR::Array<Transition>& transitions;
 #endif
+
+	String location() const
+	{
+		return String(reinterpret_cast<flash_string_t>(location_));
+	}
 
 #if TZINFO_WANT_NAME
 	String name() const
@@ -122,15 +127,23 @@ struct Info {
 		String s;
 		s += area;
 		s += '/';
-		s += location;
+		s += location();
 		return s;
+	}
+#endif
+
+#if TZINFO_WANT_TZSTR
+	String tzstr() const
+	{
+		return String(reinterpret_cast<flash_string_t>(tzstr_));
 	}
 #endif
 
 	operator Timezone() const
 	{
 #if TZINFO_WANT_TZSTR
-		return Timezone::fromPosix(tzstr);
+		String buf(reinterpret_cast<flash_string_t>(tzstr_));
+		return Timezone::fromPosix(buf);
 #elif TZINFO_WANT_RULE
 		return Timezone(dstStart, stdStart);
 #endif
@@ -139,8 +152,11 @@ struct Info {
 #if TZINFO_WANT_TRANSITIONS
 	DateTime::ZoneInfo getInfo(const Transition& tt) const
 	{
+		char tag[DateTime::ZoneInfo::Tag::maxSize + 1];
+		strncpy_P(tag, &tznames_[tt.desigidx], sizeof(tag));
+		tag[sizeof(tag) - 1] = '\0';
 		return DateTime::ZoneInfo{
-			.tag = Rule::Tag::fromString(&tznames[tt.desigidx]),
+			.tag = Rule::Tag::fromString(tag),
 			.offsetMins = tt.offsetMins,
 			.isDst = tt.isdst,
 		};
@@ -149,7 +165,7 @@ struct Info {
 
 	explicit operator bool() const
 	{
-		return location;
+		return location_;
 	}
 
 	static const Info& empty();

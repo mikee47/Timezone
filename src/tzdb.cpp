@@ -2,11 +2,13 @@
 
 #include "include/tzdb.h"
 
+#include <debug_progmem.h>
+
 namespace
 {
 bool matchLocation(const String& location, const char* name)
 {
-	auto loc = location.c_str();
+	const char* loc = location.c_str();
 	while(*name && *loc) {
 		if(!isalpha(*name)) {
 			++name;
@@ -32,7 +34,7 @@ namespace TZ
 {
 DEFINE_FSTR_LOCAL(fstr_empty, "")
 TIMEZONE_BEGIN(Empty, "", "")
-TZ_DEFINE_PSTR_LOCAL(tzstr, nullptr)
+static constexpr const char* tzstr = nullptr;
 DEFINE_REF_LOCAL(dst_rule, rule_none)
 DEFINE_REF_LOCAL(std_rule, rule_none)
 DEFINE_REF_LOCAL(transitions, transitions_none)
@@ -58,7 +60,7 @@ const Info* findZone(const String& name)
 		}
 		nameptr += arealen;
 		for(auto& zone : areaPair.content()) {
-			if(matchLocation(zone.location, nameptr)) {
+			if(matchLocation(zone.location(), nameptr)) {
 				return &zone;
 			}
 		}

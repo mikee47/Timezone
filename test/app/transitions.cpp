@@ -42,7 +42,7 @@ public:
 						Serial << endl
 							   << zone.name()
 #if TZINFO_WANT_TZSTR
-							   << ": " << zone.tzstr
+							   << ": " << zone.tzstr()
 #endif
 							   << " " << tz << endl
 							   << String().pad(12) << F("Calculated").pad(30) << _F("\tFrom transition table") << endl;
