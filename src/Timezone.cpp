@@ -178,10 +178,11 @@ ZonedTime Timezone::getNextChange(time_t utcFrom)
 	bool toDst = !fromDst;
 	auto& toRule = getRule(toDst);
 	auto year = getYear(utcFrom + fromRule.offsetSecs());
-	if(int(toRule) < int(fromRule)) {
-		++year;
+	time_t utc = toRule(year);
+	if(utc < utcFrom) {
+		utc = toRule(year + 1);
 	}
-	time_t utc = toRule(year) - fromRule.offsetSecs();
+	utc -= fromRule.offsetSecs();
 	return {utc, {toRule.tag, toRule.offsetMins, toDst}};
 }
 

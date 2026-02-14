@@ -150,14 +150,6 @@ struct Rule {
 	 */
 	time_t operator()(unsigned year) const;
 
-	/**
-	 * @brief Obtain a numeric value for comparison purposes
-	 */
-	explicit operator int() const
-	{
-		return (month << 6) | (week << 3) | dow;
-	}
-
 	bool operator==(const Rule& other) const
 	{
 		return this == &other || memcmp(this, &other, sizeof(other)) == 0;
