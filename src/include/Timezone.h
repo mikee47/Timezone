@@ -368,6 +368,28 @@ private:
 	bool hasDst{};					 ///< false if rules are the same
 };
 
+namespace System
+{
+/**
+ * @brief Set system clock to a specific timezone
+ *
+ * This configures the SystemClock so that querying local time is always correct,
+ * including around transitions to/from daylight savings.
+ */
+void setTimezone(const Timezone& timezone);
+
+/**
+ * @brief Get the current system timezone
+ */
+const Timezone& getTimezone();
+
+/**
+ * @brief Get the time of next transition to/from daylight savings
+ */
+const ZonedTime& getNextChange();
+
+} // namespace System
+
 } // namespace TZ
 
 String toString(TZ::week_t week);
