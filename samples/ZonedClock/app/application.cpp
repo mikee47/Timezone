@@ -75,6 +75,8 @@ void init()
 	Serial.begin(SERIAL_BAUD_RATE);
 	Serial.systemDebugOutput(true); // Allow debug print to serial
 
+	TZ::System::setTimezone(TZ::Europe::London());
+
 	Serial << _F("\033[H"   // Home
 				 "\033[0J"  // Erase screen
 				 "\033[10B" // Down 10 lines
