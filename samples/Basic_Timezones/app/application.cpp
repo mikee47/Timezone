@@ -204,9 +204,13 @@ void selectZone(Country::Code code, String name)
 	String codestr(code);
 	auto zonetab = openZoneTable();
 	for(auto zone : *zonetab) {
-		if(zone.codes().contains(codestr)) {
-			menu.additem(zone.caption(), [name = String(zone.name())]() { zoneSelected(name); });
+		if(zone.isContinent()) {
+			continue;
 		}
+		if(!zone.codes().contains(codestr)) {
+			continue;
+		}
+		menu.additem(zone.caption(), [name = String(zone.name())]() { zoneSelected(name); });
 	}
 	menu.end();
 }

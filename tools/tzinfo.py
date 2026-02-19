@@ -597,19 +597,28 @@ class ZoneTable:
         self.timezones = []
         for line in open(os.path.join(rootpath, ZONETAB_FILENAME)):
             line = line.strip()
-            if line.startswith('#'):
+            if line.startswith('#@'):
+                line = line[2:]
+                fields = line.split('\t')
+                country_codes = fields.pop(0).split(',')
+                tz_names = fields.pop(0).split(',')
+                for tz in tz_names:
+                    print('#@', country_codes, tz)
+                    self.timezones.append(TimeZone(country_codes, None, Zone(tz, None), None))
+            elif line.startswith('#'):
                 continue
-            fields = line.split('\t')
-            country_codes = fields.pop(0).split(',')
-            coordinates = fields.pop(0)
-            tz = fields.pop(0)
-            comments = fields.pop(0) if fields else ''
-            try:
-                zone = next(z for z in tzdata.zones if z.name == tz)
-                self.timezones.append(TimeZone(country_codes, coordinates, zone, comments))
-            except StopIteration:
-                print(f'Zone {tz} not available')
-                pass
+            else:
+                fields = line.split('\t')
+                country_codes = fields.pop(0).split(',')
+                coordinates = fields.pop(0)
+                tz = fields.pop(0)
+                comments = fields.pop(0) if fields else ''
+                try:
+                    zone = next(z for z in tzdata.zones if z.name == tz)
+                    self.timezones.append(TimeZone(country_codes, coordinates, zone, comments))
+                except StopIteration:
+                    print(f'Zone {tz} not available')
+                    pass
 
         # 1) Area
         self.areas = []

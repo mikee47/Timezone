@@ -34,6 +34,11 @@ struct Zone : public CSV::Record {
 		return sep ? (sep + 1) : s;
 	}
 
+	bool isContinent() const
+	{
+		return *nameNoArea() == '\0';
+	}
+
 	const char* comments() const
 	{
 		return row[col_comments];
@@ -55,7 +60,7 @@ struct Zone : public CSV::Record {
 	{
 		auto s = name();
 		auto len = area.length();
-		return strncmp(s, area.c_str(), len) == 0 && s[len] == '/';
+		return strncmp(s, area.c_str(), len) == 0 && (s[len] == '/' || s[len] == '\0');
 	}
 
 	String getAreaCaption() const
